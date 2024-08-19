@@ -71,190 +71,274 @@
 
 #include "libavutil/thread.h"
 
+/*
+这段文本是一段程序代码中的条件编译部分。
+它的作用是在特定条件（即没有线程支持）下，
+对与线程相关的函数 `pthread_mutex_lock` 
+和 `pthread_mutex_unlock` 进行重新定义。
+通过 `#ifdef` 和 `#undef` 等预处理指令，
+将原本的函数定义取消，并重新定义为一个空的循环语句 
+`do{}while(0)` ，从而在不支持线程的情况下避免使用这些函数。 
+*/
 #if !HAVE_THREADS
+// 如果没有定义 HAVE_THREADS 这个宏
 #  ifdef pthread_mutex_lock
+// 如果之前定义了 pthread_mutex_lock
 #    undef pthread_mutex_lock
+// 取消之前的定义
 #  endif
+// 定义一个空操作的宏 pthread_mutex_lock
 #  define pthread_mutex_lock(a) do{}while(0)
 #  ifdef pthread_mutex_unlock
+// 如果之前定义了 pthread_mutex_unlock
 #    undef pthread_mutex_unlock
+// 取消之前的定义
 #  endif
+// 定义一个空操作的宏 pthread_mutex_unlock
 #  define pthread_mutex_unlock(a) do{}while(0)
 #endif
+// 结束条件编译
 
 // attached as opaque_ref to packets/frames
 typedef struct FrameData {
+    // 定义一个 64 位有符号整数类型的成员 pkt_pos，可能用于表示数据包的位置
     int64_t pkt_pos;
+    // 定义一个整数类型的成员 pkt_size，可能用于表示数据包的大小
     int     pkt_size;
 } FrameData;
+// 使用 typedef 为这个结构体定义了一个新的类型名 FrameData，方便后续使用
 
 typedef struct InputStream {
+    // 一个指向 AVStream 结构体的指针 st
     AVStream *st;
 
+    // 一个指向 AVCodecContext 结构体的指针 dec_ctx
     AVCodecContext *dec_ctx;
 } InputStream;
+// 使用 typedef 为这个结构体定义了一个新的类型名 InputStream，方便后续使用
 
 typedef struct InputFile {
+    // 一个指向 AVFormatContext 结构体的指针 fmt_ctx
     AVFormatContext *fmt_ctx;
 
+    // 一个指向 InputStream 结构体的指针 streams
     InputStream *streams;
+    // 一个整数 nb_streams，可能表示输入流的数量
     int       nb_streams;
 } InputFile;
+// 使用 typedef 为这个结构体定义了一个新的类型名 InputFile，方便后续使用
 
 const char program_name[] = "ffprobe";
+// 定义一个常量字符数组 program_name，并初始化为 "ffprobe"
+
 const int program_birth_year = 2007;
+// 定义一个常量整数 program_birth_year，并初始化为 2007
 
 static int do_bitexact = 0;
+// 定义一个静态整数变量 do_bitexact 并初始化为 0
 static int do_count_frames = 0;
+// 定义一个静态整数变量 do_count_frames 并初始化为 0
 static int do_count_packets = 0;
+// 定义一个静态整数变量 do_count_packets 并初始化为 0
 static int do_read_frames  = 0;
+// 定义一个静态整数变量 do_read_frames 并初始化为 0
 static int do_read_packets = 0;
+// 定义一个静态整数变量 do_read_packets 并初始化为 0
 static int do_show_chapters = 0;
+// 定义一个静态整数变量 do_show_chapters 并初始化为 0
 static int do_show_error   = 0;
+// 定义一个静态整数变量 do_show_error 并初始化为 0
 static int do_show_format  = 0;
+// 定义一个静态整数变量 do_show_format 并初始化为 0
 static int do_show_frames  = 0;
+// 定义一个静态整数变量 do_show_frames 并初始化为 0
 static int do_show_packets = 0;
+// 定义一个静态整数变量 do_show_packets 并初始化为 0
 static int do_show_programs = 0;
+// 定义一个静态整数变量 do_show_programs 并初始化为 0
 static int do_show_stream_groups = 0;
+// 定义一个静态整数变量 do_show_stream_groups 并初始化为 0
 static int do_show_stream_group_components = 0;
+// 定义一个静态整数变量 do_show_stream_group_components 并初始化为 0
 static int do_show_streams = 0;
+// 定义一个静态整数变量 do_show_streams 并初始化为 0
 static int do_show_stream_disposition = 0;
+// 定义一个静态整数变量 do_show_stream_disposition 并初始化为 0
 static int do_show_stream_group_disposition = 0;
-static int do_show_data    = 0;
-static int do_show_program_version  = 0;
+// 定义一个静态整数变量 do_show_stream_group_disposition 并初始化为 0
+static int do_show_data = 0;
+// 定义一个静态整数变量 do_show_data 并初始化为 0
+static int do_show_program_version = 0;
+// 定义一个静态整数变量 do_show_program_version 并初始化为 0
 static int do_show_library_versions = 0;
+// 定义一个静态整数变量 do_show_library_versions 并初始化为 0
 static int do_show_pixel_formats = 0;
+// 定义一个静态整数变量 do_show_pixel_formats 并初始化为 0
 static int do_show_pixel_format_flags = 0;
+// 定义一个静态整数变量 do_show_pixel_format_flags 并初始化为 0
 static int do_show_pixel_format_components = 0;
+// 定义一个静态整数变量 do_show_pixel_format_components 并初始化为 0
 static int do_show_log = 0;
+// 定义一个静态整数变量 do_show_log 并初始化为 0
 
 static int do_show_chapter_tags = 0;
+// 定义一个静态整数变量 do_show_chapter_tags 并初始化为 0
 static int do_show_format_tags = 0;
+// 定义一个静态整数变量 do_show_format_tags 并初始化为 0
 static int do_show_frame_tags = 0;
+// 定义一个静态整数变量 do_show_frame_tags 并初始化为 0
 static int do_show_program_tags = 0;
+// 定义一个静态整数变量 do_show_program_tags 并初始化为 0
 static int do_show_stream_group_tags = 0;
+// 定义一个静态整数变量 do_show_stream_group_tags 并初始化为 0
 static int do_show_stream_tags = 0;
+// 定义一个静态整数变量 do_show_stream_tags 并初始化为 0
 static int do_show_packet_tags = 0;
+// 定义一个静态整数变量 do_show_packet_tags 并初始化为 0
 
 static int show_value_unit              = 0;
+// 定义一个静态整数变量 show_value_unit 并初始化为 0
 static int use_value_prefix             = 0;
+// 定义一个静态整数变量 use_value_prefix 并初始化为 0
 static int use_byte_value_binary_prefix = 0;
+// 定义一个静态整数变量 use_byte_value_binary_prefix 并初始化为 0
 static int use_value_sexagesimal_format = 0;
+// 定义一个静态整数变量 use_value_sexagesimal_format 并初始化为 0
 static int show_private_data            = 1;
+// 定义一个静态整数变量 show_private_data 并初始化为 1
 
 #define SHOW_OPTIONAL_FIELDS_AUTO       -1
+// 定义一个宏 SHOW_OPTIONAL_FIELDS_AUTO 并赋值为 -1
 #define SHOW_OPTIONAL_FIELDS_NEVER       0
+// 定义一个宏 SHOW_OPTIONAL_FIELDS_NEVER 并赋值为 0
 #define SHOW_OPTIONAL_FIELDS_ALWAYS      1
+// 定义一个宏 SHOW_OPTIONAL_FIELDS_ALWAYS 并赋值为 1
 static int show_optional_fields = SHOW_OPTIONAL_FIELDS_AUTO;
+// 定义一个静态整数变量 show_optional_fields 并初始化为 SHOW_OPTIONAL_FIELDS_AUTO
 
 static char *output_format;
+// 定义一个静态字符指针 output_format
 static char *stream_specifier;
+// 定义一个静态字符指针 stream_specifier
 static char *show_data_hash;
+// 定义一个静态字符指针 show_data_hash
 
 typedef struct ReadInterval {
-    int id;             ///< identifier
-    int64_t start, end; ///< start, end in second/AV_TIME_BASE units
+    // 定义一个整数类型的成员 id，可能作为标识符
+    int id;             
+    // 定义两个 64 位有符号整数类型的成员 start 和 end，可能表示时间范围（以秒/AV_TIME_BASE 为单位）
+    int64_t start, end; 
+    // 定义两个整数类型的标志 has_start 和 has_end，用于指示是否有起始和结束
     int has_start, has_end;
+    // 定义两个整数类型的标志 start_is_offset 和 end_is_offset，可能表示起始和结束是否为偏移量
     int start_is_offset, end_is_offset;
+    // 定义一个整数类型的成员 duration_frames，可能表示帧数的持续时间
     int duration_frames;
 } ReadInterval;
+// 为这个结构体定义了一个新的类型名 ReadInterval
 
 static ReadInterval *read_intervals;
+// 定义一个静态的 ReadInterval 结构体指针 read_intervals
+
 static int read_intervals_nb = 0;
+// 定义一个静态整数 read_intervals_nb 并初始化为 0
 
 static int find_stream_info  = 1;
+// 定义一个静态整数 find_stream_info 并初始化为 1
 
 /* section structure definition */
 
 #define SECTION_MAX_NB_CHILDREN 11
+// 定义一个宏 SECTION_MAX_NB_CHILDREN 并赋值为 11
 
-typedef enum {
-    SECTION_ID_NONE = -1,
-    SECTION_ID_CHAPTER,
-    SECTION_ID_CHAPTER_TAGS,
-    SECTION_ID_CHAPTERS,
-    SECTION_ID_ERROR,
-    SECTION_ID_FORMAT,
-    SECTION_ID_FORMAT_TAGS,
-    SECTION_ID_FRAME,
-    SECTION_ID_FRAMES,
-    SECTION_ID_FRAME_TAGS,
-    SECTION_ID_FRAME_SIDE_DATA_LIST,
-    SECTION_ID_FRAME_SIDE_DATA,
-    SECTION_ID_FRAME_SIDE_DATA_TIMECODE_LIST,
-    SECTION_ID_FRAME_SIDE_DATA_TIMECODE,
-    SECTION_ID_FRAME_SIDE_DATA_COMPONENT_LIST,
-    SECTION_ID_FRAME_SIDE_DATA_COMPONENT,
-    SECTION_ID_FRAME_SIDE_DATA_PIECE_LIST,
-    SECTION_ID_FRAME_SIDE_DATA_PIECE,
-    SECTION_ID_FRAME_LOG,
-    SECTION_ID_FRAME_LOGS,
-    SECTION_ID_LIBRARY_VERSION,
-    SECTION_ID_LIBRARY_VERSIONS,
-    SECTION_ID_PACKET,
-    SECTION_ID_PACKET_TAGS,
-    SECTION_ID_PACKETS,
-    SECTION_ID_PACKETS_AND_FRAMES,
-    SECTION_ID_PACKET_SIDE_DATA_LIST,
-    SECTION_ID_PACKET_SIDE_DATA,
-    SECTION_ID_PIXEL_FORMAT,
-    SECTION_ID_PIXEL_FORMAT_FLAGS,
-    SECTION_ID_PIXEL_FORMAT_COMPONENT,
-    SECTION_ID_PIXEL_FORMAT_COMPONENTS,
-    SECTION_ID_PIXEL_FORMATS,
-    SECTION_ID_PROGRAM_STREAM_DISPOSITION,
-    SECTION_ID_PROGRAM_STREAM_TAGS,
-    SECTION_ID_PROGRAM,
-    SECTION_ID_PROGRAM_STREAMS,
-    SECTION_ID_PROGRAM_STREAM,
-    SECTION_ID_PROGRAM_TAGS,
-    SECTION_ID_PROGRAM_VERSION,
-    SECTION_ID_PROGRAMS,
-    SECTION_ID_STREAM_GROUP_STREAM_DISPOSITION,
-    SECTION_ID_STREAM_GROUP_STREAM_TAGS,
-    SECTION_ID_STREAM_GROUP,
-    SECTION_ID_STREAM_GROUP_COMPONENTS,
-    SECTION_ID_STREAM_GROUP_COMPONENT,
-    SECTION_ID_STREAM_GROUP_SUBCOMPONENTS,
-    SECTION_ID_STREAM_GROUP_SUBCOMPONENT,
-    SECTION_ID_STREAM_GROUP_PIECES,
-    SECTION_ID_STREAM_GROUP_PIECE,
-    SECTION_ID_STREAM_GROUP_SUBPIECES,
-    SECTION_ID_STREAM_GROUP_SUBPIECE,
-    SECTION_ID_STREAM_GROUP_BLOCKS,
-    SECTION_ID_STREAM_GROUP_BLOCK,
-    SECTION_ID_STREAM_GROUP_STREAMS,
-    SECTION_ID_STREAM_GROUP_STREAM,
-    SECTION_ID_STREAM_GROUP_DISPOSITION,
-    SECTION_ID_STREAM_GROUP_TAGS,
-    SECTION_ID_STREAM_GROUPS,
-    SECTION_ID_ROOT,
-    SECTION_ID_STREAM,
-    SECTION_ID_STREAM_DISPOSITION,
-    SECTION_ID_STREAMS,
-    SECTION_ID_STREAM_TAGS,
-    SECTION_ID_STREAM_SIDE_DATA_LIST,
-    SECTION_ID_STREAM_SIDE_DATA,
-    SECTION_ID_SUBTITLE,
-} SectionID;
+typedef enum {  // 定义一个枚举类型
+    SECTION_ID_NONE = -1,  // 表示无的枚举值，赋值为 -1
+    SECTION_ID_CHAPTER,  // 章节相关的枚举值
+    SECTION_ID_CHAPTER_TAGS,  // 章节标签的枚举值
+    SECTION_ID_CHAPTERS,  // 多个章节的枚举值
+    SECTION_ID_ERROR,  // 错误相关的枚举值
+    SECTION_ID_FORMAT,  // 格式相关的枚举值
+    SECTION_ID_FORMAT_TAGS,  // 格式标签的枚举值
+    SECTION_ID_FRAME,  // 帧的枚举值
+    SECTION_ID_FRAMES,  // 多个帧的枚举值
+    SECTION_ID_FRAME_TAGS,  // 帧标签的枚举值
+    SECTION_ID_FRAME_SIDE_DATA_LIST,  // 帧边数据列表的枚举值
+    SECTION_ID_FRAME_SIDE_DATA,  // 帧边数据的枚举值
+    SECTION_ID_FRAME_SIDE_DATA_TIMECODE_LIST,  // 帧边数据时间码列表的枚举值
+    SECTION_ID_FRAME_SIDE_DATA_TIMECODE,  // 帧边数据时间码的枚举值
+    SECTION_ID_FRAME_SIDE_DATA_COMPONENT_LIST,  // 帧边数据组件列表的枚举值
+    SECTION_ID_FRAME_SIDE_DATA_COMPONENT,  // 帧边数据组件的枚举值
+    SECTION_ID_FRAME_SIDE_DATA_PIECE_LIST,  // 帧边数据片段列表的枚举值
+    SECTION_ID_FRAME_SIDE_DATA_PIECE,  // 帧边数据片段的枚举值
+    SECTION_ID_FRAME_LOG,  // 帧日志的枚举值
+    SECTION_ID_FRAME_LOGS,  // 多个帧日志的枚举值
+    SECTION_ID_LIBRARY_VERSION,  // 库版本的枚举值
+    SECTION_ID_LIBRARY_VERSIONS,  // 多个库版本的枚举值
+    SECTION_ID_PACKET,  // 数据包的枚举值
+    SECTION_ID_PACKET_TAGS,  // 数据包标签的枚举值
+    SECTION_ID_PACKETS,  // 多个数据包的枚举值
+    SECTION_ID_PACKETS_AND_FRAMES,  // 数据包和帧的枚举值
+    SECTION_ID_PACKET_SIDE_DATA_LIST,  // 数据包边数据列表的枚举值
+    SECTION_ID_PACKET_SIDE_DATA,  // 数据包边数据的枚举值
+    SECTION_ID_PIXEL_FORMAT,  // 像素格式的枚举值
+    SECTION_ID_PIXEL_FORMAT_FLAGS,  // 像素格式标志的枚举值
+    SECTION_ID_PIXEL_FORMAT_COMPONENT,  // 像素格式组件的枚举值
+    SECTION_ID_PIXEL_FORMAT_COMPONENTS,  // 多个像素格式组件的枚举值
+    SECTION_ID_PIXEL_FORMATS,  // 多个像素格式的枚举值
+    SECTION_ID_PROGRAM_STREAM_DISPOSITION,  // 程序流配置的枚举值
+    SECTION_ID_PROGRAM_STREAM_TAGS,  // 程序流标签的枚举值
+    SECTION_ID_PROGRAM,  // 程序的枚举值
+    SECTION_ID_PROGRAM_STREAMS,  // 多个程序流的枚举值
+    SECTION_ID_PROGRAM_STREAM,  // 单个程序流的枚举值
+    SECTION_ID_PROGRAM_TAGS,  // 程序标签的枚举值
+    SECTION_ID_PROGRAM_VERSION,  // 程序版本的枚举值
+    SECTION_ID_PROGRAMS,  // 多个程序的枚举值
+    SECTION_ID_STREAM_GROUP_STREAM_DISPOSITION,  // 流组流配置的枚举值
+    SECTION_ID_STREAM_GROUP_STREAM_TAGS,  // 流组流标签的枚举值
+    SECTION_ID_STREAM_GROUP,  // 流组的枚举值
+    SECTION_ID_STREAM_GROUP_COMPONENTS,  // 流组组件的枚举值
+    SECTION_ID_STREAM_GROUP_COMPONENT,  // 单个流组组件的枚举值
+    SECTION_ID_STREAM_GROUP_SUBCOMPONENTS,  // 流组子组件的枚举值
+    SECTION_ID_STREAM_GROUP_SUBCOMPONENT,  // 单个流组子组件的枚举值
+    SECTION_ID_STREAM_GROUP_PIECES,  // 流组片段的枚举值
+    SECTION_ID_STREAM_GROUP_PIECE,  // 单个流组片段的枚举值
+    SECTION_ID_STREAM_GROUP_SUBPIECES,  // 流组子片段的枚举值
+    SECTION_ID_STREAM_GROUP_SUBPIECE,  // 单个流组子片段的枚举值
+    SECTION_ID_STREAM_GROUP_BLOCKS,  // 流组块的枚举值
+    SECTION_ID_STREAM_GROUP_BLOCK,  // 单个流组块的枚举值
+    SECTION_ID_STREAM_GROUP_STREAMS,  // 流组中的多个流的枚举值
+    SECTION_ID_STREAM_GROUP_STREAM,  // 流组中的单个流的枚举值
+    SECTION_ID_STREAM_GROUP_DISPOSITION,  // 流组配置的枚举值
+    SECTION_ID_STREAM_GROUP_TAGS,  // 流组标签的枚举值
+    SECTION_ID_STREAM_GROUPS,  // 多个流组的枚举值
+    SECTION_ID_ROOT,  // 根的枚举值
+    SECTION_ID_STREAM,  // 流的枚举值
+    SECTION_ID_STREAM_DISPOSITION,  // 流配置的枚举值
+    SECTION_ID_STREAMS,  // 多个流的枚举值
+    SECTION_ID_STREAM_TAGS,  // 流标签的枚举值
+    SECTION_ID_STREAM_SIDE_DATA_LIST,  // 流边数据列表的枚举值
+    SECTION_ID_STREAM_SIDE_DATA,  // 流边数据的枚举值
+    SECTION_ID_SUBTITLE  // 字幕的枚举值
+} SectionID;  // 结束枚举类型的定义
 
-struct section {
-    int id;             ///< unique id identifying a section
-    const char *name;
+struct section {  // 定义一个名为 section 的结构体
+    int id;             ///< unique id identifying a section  // 唯一标识一个节的整数类型的 ID
+    const char *name;  // 指向节名称的常量字符指针
 
-#define SECTION_FLAG_IS_WRAPPER      1 ///< the section only contains other sections, but has no data at its own level
-#define SECTION_FLAG_IS_ARRAY        2 ///< the section contains an array of elements of the same type
-#define SECTION_FLAG_HAS_VARIABLE_FIELDS 4 ///< the section may contain a variable number of fields with variable keys.
-                                           ///  For these sections the element_name field is mandatory.
-#define SECTION_FLAG_HAS_TYPE        8 ///< the section contains a type to distinguish multiple nested elements
+#define SECTION_FLAG_IS_WRAPPER      1 ///< the section only contains other sections, but has no data at its own level  // 定义标志常量 SECTION_FLAG_IS_WRAPPER 为 1
+#define SECTION_FLAG_IS_ARRAY        2 ///< the section contains an array of elements of the same type  // 定义标志常量 SECTION_FLAG_IS_ARRAY 为 2
+#define SECTION_FLAG_HAS_VARIABLE_FIELDS 4 ///< the section may contain a variable number of fields with variable keys.  // 定义标志常量 SECTION_FLAG_HAS_VARIABLE_FIELDS 为 4
+                                           ///  For these sections the element_name field is mandatory.  // 对于具有可变字段的节，element_name 字段是必需的
+#define SECTION_FLAG_HAS_TYPE        8 ///< the section contains a type to distinguish multiple nested elements  // 定义标志常量 SECTION_FLAG_HAS_TYPE 为 8
 
-    int flags;
-    const SectionID children_ids[SECTION_MAX_NB_CHILDREN+1]; ///< list of children section IDS, terminated by -1
-    const char *element_name; ///< name of the contained element, if provided
-    const char *unique_name;  ///< unique section name, in case the name is ambiguous
-    AVDictionary *entries_to_show;
-    const char *(* get_type)(const void *data); ///< function returning a type if defined, must be defined when SECTION_FLAG_HAS_TYPE is defined
-    int show_all_entries;
+    int flags;  // 表示节属性的标志整数
+
+    const SectionID children_ids[SECTION_MAX_NB_CHILDREN+1]; ///< list of children section IDS, terminated by -1  // 包含子节 ID 的数组，以 -1 结尾
+    const char *element_name; ///< name of the contained element, if provided  // 如果提供，指向包含元素的名称
+    const char *unique_name;  ///< unique section name, in case the name is ambiguous  // 唯一的节名称，以防名称不明确
+    AVDictionary *entries_to_show;  // 指向字典的指针，用于要显示的条目
+    const char *(* get_type)(const void *data); ///< function returning a type if defined, must be defined when SECTION_FLAG_HAS_TYPE is defined  // 一个函数指针，用于获取类型，如果定义了 SECTION_FLAG_HAS_TYPE 则必须定义
+    int show_all_entries;  // 是否显示所有条目的标志
 };
 
 static const char *get_packet_side_data_type(const void *data)
@@ -401,52 +485,50 @@ typedef struct LogBuffer {
 static LogBuffer *log_buffer;
 static int log_buffer_size;
 
-static void log_callback(void *ptr, int level, const char *fmt, va_list vl)
+static void log_callback(void *ptr, int level, const char *fmt, va_list vl)  // 定义一个静态的日志回调函数 log_callback
 {
-    AVClass* avc = ptr ? *(AVClass **) ptr : NULL;
-    va_list vl2;
-    char line[1024];
-    static int print_prefix = 1;
-    void *new_log_buffer;
+    AVClass* avc = ptr ? *(AVClass **) ptr : NULL;  // 根据传入的指针 ptr 获取 AVClass 指针，如果 ptr 不为空
+    va_list vl2;  // 定义另一个可变参数列表 vl2
+    char line[1024];  // 定义一个固定大小为 1024 字节的字符数组 line
+    static int print_prefix = 1;  // 定义一个静态整数变量 print_prefix 并初始化为 1
+    void *new_log_buffer;  // 定义一个通用指针 new_log_buffer
 
-    va_copy(vl2, vl);
-    av_log_default_callback(ptr, level, fmt, vl);
-    av_log_format_line(ptr, level, fmt, vl2, line, sizeof(line), &print_prefix);
-    va_end(vl2);
+    va_copy(vl2, vl);  // 复制可变参数列表 vl 到 vl2
+    av_log_default_callback(ptr, level, fmt, vl);  // 调用默认的日志回调函数
+    av_log_format_line(ptr, level, fmt, vl2, line, sizeof(line), &print_prefix);  // 格式化日志行
+    va_end(vl2);  // 结束对 vl2 的使用
 
-#if HAVE_THREADS
-    pthread_mutex_lock(&log_mutex);
+#if HAVE_THREADS  // 如果定义了 HAVE_THREADS
+    pthread_mutex_lock(&log_mutex);  // 加锁
 
-    new_log_buffer = av_realloc_array(log_buffer, log_buffer_size + 1, sizeof(*log_buffer));
-    if (new_log_buffer) {
-        char *msg;
-        int i;
+    new_log_buffer = av_realloc_array(log_buffer, log_buffer_size + 1, sizeof(*log_buffer));  // 重新分配日志缓冲区内存
+    if (new_log_buffer) {  // 如果内存分配成功
+        char *msg;  // 定义字符指针 msg
+        int i;  // 定义整数变量 i
 
-        log_buffer = new_log_buffer;
-        memset(&log_buffer[log_buffer_size], 0, sizeof(log_buffer[log_buffer_size]));
-        log_buffer[log_buffer_size].context_name= avc ? av_strdup(avc->item_name(ptr)) : NULL;
-        if (avc) {
-            if (avc->get_category) log_buffer[log_buffer_size].category = avc->get_category(ptr);
-            else                   log_buffer[log_buffer_size].category = avc->category;
+        log_buffer = new_log_buffer;  // 更新日志缓冲区指针
+        memset(&log_buffer[log_buffer_size], 0, sizeof(log_buffer[log_buffer_size]));  // 清空新分配的缓冲区位置
+        log_buffer[log_buffer_size].context_name = avc? av_strdup(avc->item_name(ptr)) : NULL;  // 复制上下文名称
+        if (avc) {  // 如果 AVClass 指针不为空
+            if (avc->get_category) log_buffer[log_buffer_size].category = avc->get_category(ptr);  // 获取类别
+            else log_buffer[log_buffer_size].category = avc->category;  // 否则使用默认类别
         }
-        log_buffer[log_buffer_size].log_level   = level;
-        msg = log_buffer[log_buffer_size].log_message = av_strdup(line);
-        for (i=strlen(msg) - 1; i>=0 && msg[i] == '\n'; i--) {
+        log_buffer[log_buffer_size].log_level = level;  // 设置日志级别
+        msg = log_buffer[log_buffer_size].log_message = av_strdup(line);  // 复制日志消息
+        for (i = strlen(msg) - 1; i >= 0 && msg[i] == '\n'; i--) {  // 去除末尾的换行符
             msg[i] = 0;
         }
-        if (avc && avc->parent_log_context_offset) {
-            AVClass** parent = *(AVClass ***) (((uint8_t *) ptr) +
-                                   avc->parent_log_context_offset);
-            if (parent && *parent) {
-                log_buffer[log_buffer_size].parent_name = av_strdup((*parent)->item_name(parent));
-                log_buffer[log_buffer_size].parent_category =
-                    (*parent)->get_category ? (*parent)->get_category(parent) :(*parent)->category;
+        if (avc && avc->parent_log_context_offset) {  // 如果有父日志上下文偏移量
+            AVClass** parent = *(AVClass ***) (((uint8_t *) ptr) + avc->parent_log_context_offset);  // 获取父指针
+            if (parent && *parent) {  // 如果父指针有效
+                log_buffer[log_buffer_size].parent_name = av_strdup((*parent)->item_name(parent));  // 复制父名称
+                log_buffer[log_buffer_size].parent_category = (*parent)->get_category? (*parent)->get_category(parent) : (*parent)->category;  // 复制父类别
             }
         }
-        log_buffer_size ++;
+        log_buffer_size++;  // 增加日志缓冲区大小
     }
 
-    pthread_mutex_unlock(&log_mutex);
+    pthread_mutex_unlock(&log_mutex);  // 解锁
 #endif
 }
 
@@ -522,56 +604,55 @@ typedef enum {
     WRITER_STRING_VALIDATION_NB
 } StringValidation;
 
-typedef struct Writer {
-    const AVClass *priv_class;      ///< private class of the writer, if any
-    int priv_size;                  ///< private size for the writer context
-    const char *name;
+typedef struct Writer {  // 定义一个名为 Writer 的结构体类型
+    const AVClass *priv_class;      ///< 私有类的指针，如果有的话
+    int priv_size;                  ///< 用于写入器上下文的私有大小
+    const char *name;               ///< 写入器的名称
 
-    int  (*init)  (WriterContext *wctx);
-    void (*uninit)(WriterContext *wctx);
+    int  (*init)  (WriterContext *wctx);  ///< 指向初始化函数的指针
+    void (*uninit)(WriterContext *wctx);  ///< 指向取消初始化函数的指针
 
-    void (*print_section_header)(WriterContext *wctx, const void *data);
-    void (*print_section_footer)(WriterContext *wctx);
-    void (*print_integer)       (WriterContext *wctx, const char *, int64_t);
-    void (*print_rational)      (WriterContext *wctx, AVRational *q, char *sep);
-    void (*print_string)        (WriterContext *wctx, const char *, const char *);
-    int flags;                  ///< a combination or WRITER_FLAG_*
-} Writer;
+    void (*print_section_header)(WriterContext *wctx, const void *data);  ///< 指向打印节头的函数的指针
+    void (*print_section_footer)(WriterContext *wctx);  ///< 指向打印节尾的函数的指针
+    void (*print_integer)       (WriterContext *wctx, const char *, int64_t);  ///< 指向打印整数的函数的指针
+    void (*print_rational)      (WriterContext *wctx, AVRational *q, char *sep);  ///< 指向打印有理数的函数的指针
+    void (*print_string)        (WriterContext *wctx, const char *, const char *);  ///< 指向打印字符串的函数的指针
+    int flags;                  ///< 标志，是 WRITER_FLAG_* 的组合
+} Writer;  // 结束结构体的定义，并将其命名为 Writer
 
 #define SECTION_MAX_NB_LEVELS 12
 
-struct WriterContext {
-    const AVClass *class;           ///< class of the writer
-    const Writer *writer;           ///< the Writer of which this is an instance
-    AVIOContext *avio;              ///< the I/O context used to write
+struct WriterContext {  // 定义一个名为 WriterContext 的结构体
+    const AVClass *class;           ///< 指向 AVClass 的常量指针，代表写入器的类
+    const Writer *writer;           ///< 指向 Writer 结构体的常量指针，表示所属的写入器
+    AVIOContext *avio;              ///< 指向 AVIOContext 的指针，用于写入的 I/O 上下文
 
-    void (* writer_w8)(WriterContext *wctx, int b);
-    void (* writer_put_str)(WriterContext *wctx, const char *str);
-    void (* writer_printf)(WriterContext *wctx, const char *fmt, ...);
+    void (* writer_w8)(WriterContext *wctx, int b);  ///< 指向写入 8 位数据的函数的指针
+    void (* writer_put_str)(WriterContext *wctx, const char *str);  ///< 指向写入字符串的函数的指针
+    void (* writer_printf)(WriterContext *wctx, const char *fmt,...);  ///< 指向格式化写入的函数的指针
 
-    char *name;                     ///< name of this writer instance
-    void *priv;                     ///< private data for use by the filter
+    char *name;                     ///< 写入器实例的名称
+    void *priv;                     ///< 私有数据，供过滤器使用
 
-    const struct section *sections; ///< array containing all sections
-    int nb_sections;                ///< number of sections
+    const struct section *sections; ///< 指向 section 结构体的常量指针数组
+    int nb_sections;                ///< 节的数量
 
-    int level;                      ///< current level, starting from 0
+    int level;                      ///< 当前级别，从 0 开始
 
-    /** number of the item printed in the given section, starting from 0 */
-    unsigned int nb_item[SECTION_MAX_NB_LEVELS];
+    /** 给定节中已打印项的数量，从 0 开始 */
+    unsigned int nb_item[SECTION_MAX_NB_LEVELS];  ///< 一个无符号整数数组，用于存储每个级别的已打印项数量
 
-    /** section per each level */
-    const struct section *section[SECTION_MAX_NB_LEVELS];
-    AVBPrint section_pbuf[SECTION_MAX_NB_LEVELS]; ///< generic print buffer dedicated to each section,
-                                                  ///  used by various writers
+    /** 每个级别的节 */
+    const struct section *section[SECTION_MAX_NB_LEVELS];  ///< 指向 section 结构体的常量指针数组
+    AVBPrint section_pbuf[SECTION_MAX_NB_LEVELS];  ///< 每个节专用的通用打印缓冲区，供各种写入器使用
 
-    unsigned int nb_section_packet; ///< number of the packet section in case we are in "packets_and_frames" section
-    unsigned int nb_section_frame;  ///< number of the frame  section in case we are in "packets_and_frames" section
-    unsigned int nb_section_packet_frame; ///< nb_section_packet or nb_section_frame according if is_packets_and_frames
+    unsigned int nb_section_packet;  ///< 在 "packets_and_frames" 节中的数据包节数量
+    unsigned int nb_section_frame;   ///< 在 "packets_and_frames" 节中的帧节数量
+    unsigned int nb_section_packet_frame;  ///< 根据情况为 nb_section_packet 或 nb_section_frame
 
-    int string_validation;
-    char *string_validation_replacement;
-    unsigned int string_validation_utf8_flags;
+    int string_validation;  ///< 字符串验证相关的整数
+    char *string_validation_replacement;  ///< 用于字符串验证替换的字符指针
+    unsigned int string_validation_utf8_flags;  ///< 字符串验证的 UTF8 标志
 };
 
 static const char *writer_get_name(void *p)
@@ -682,146 +763,173 @@ static inline void writer_printf_printf(WriterContext *wctx, const char *fmt, ..
 }
 
 static int writer_open(WriterContext **wctx, const Writer *writer, const char *args,
-                       const struct section *sections, int nb_sections, const char *output)
+                       const struct section *sections, int nb_sections, const char *output)  // 定义一个静态函数 writer_open，返回整数，接受多个参数
 {
-    int i, ret = 0;
+    int i, ret = 0;  // 定义整数变量 i 和 ret 并初始化为 0
 
-    if (!(*wctx = av_mallocz(sizeof(WriterContext)))) {
-        ret = AVERROR(ENOMEM);
-        goto fail;
+    if (!(*wctx = av_mallocz(sizeof(WriterContext)))) {  // 分配内存并初始化，如果失败
+        ret = AVERROR(ENOMEM);  // 设置错误码为内存不足
+        goto fail;  // 跳转到 fail 标签
     }
 
-    if (!((*wctx)->priv = av_mallocz(writer->priv_size))) {
-        ret = AVERROR(ENOMEM);
-        goto fail;
+    if (!((*wctx)->priv = av_mallocz(writer->priv_size))) {  // 为私有部分分配内存，如果失败
+        ret = AVERROR(ENOMEM);  // 设置错误码为内存不足
+        goto fail;  // 跳转到 fail 标签
     }
 
-    (*wctx)->class = &writer_class;
-    (*wctx)->writer = writer;
-    (*wctx)->level = -1;
-    (*wctx)->sections = sections;
-    (*wctx)->nb_sections = nb_sections;
+    (*wctx)->class = &writer_class;  // 设置类
+    (*wctx)->writer = writer;  // 设置写者
+    (*wctx)->level = -1;  // 设置级别
+    (*wctx)->sections = sections;  // 设置节
+    (*wctx)->nb_sections = nb_sections;  // 设置节的数量
 
-    av_opt_set_defaults(*wctx);
+    av_opt_set_defaults(*wctx);  // 设置默认选项
 
-    if (writer->priv_class) {
-        void *priv_ctx = (*wctx)->priv;
-        *((const AVClass **)priv_ctx) = writer->priv_class;
-        av_opt_set_defaults(priv_ctx);
+    if (writer->priv_class) {  // 如果写者有私有类
+        void *priv_ctx = (*wctx)->priv;  // 获取私有上下文
+        *((const AVClass **)priv_ctx) = writer->priv_class;  // 设置私有类
+        av_opt_set_defaults(priv_ctx);  // 设置私有上下文的默认选项
     }
 
     /* convert options to dictionary */
-    if (args) {
-        AVDictionary *opts = NULL;
-        const AVDictionaryEntry *opt = NULL;
+    if (args) {  // 如果有参数
+        AVDictionary *opts = NULL;  // 定义字典
+        const AVDictionaryEntry *opt = NULL;  // 定义字典条目
 
-        if ((ret = av_dict_parse_string(&opts, args, "=", ":", 0)) < 0) {
-            av_log(*wctx, AV_LOG_ERROR, "Failed to parse option string '%s' provided to writer context\n", args);
-            av_dict_free(&opts);
-            goto fail;
+        if ((ret = av_dict_parse_string(&opts, args, "=", ":", 0)) < 0) {  // 解析参数字符串为字典，如果失败
+            av_log(*wctx, AV_LOG_ERROR, "Failed to parse option string '%s' provided to writer context\n", args);  // 记录错误日志
+            av_dict_free(&opts);  // 释放字典
+            goto fail;  // 跳转到 fail 标签
         }
 
-        while ((opt = av_dict_iterate(opts, opt))) {
-            if ((ret = av_opt_set(*wctx, opt->key, opt->value, AV_OPT_SEARCH_CHILDREN)) < 0) {
-                av_log(*wctx, AV_LOG_ERROR, "Failed to set option '%s' with value '%s' provided to writer context\n",
-                       opt->key, opt->value);
-                av_dict_free(&opts);
-                goto fail;
+        while ((opt = av_dict_iterate(opts, opt))) {  // 遍历字典条目
+            if ((ret = av_opt_set(*wctx, opt->key, opt->value, AV_OPT_SEARCH_CHILDREN)) < 0) {  // 设置选项，如果失败
+                av_log(*wctx, AV_LOG_ERROR, "Failed to set option '%s' with value '%s' provided to writer context\n", opt->key, opt->value);  // 记录错误日志
+                av_dict_free(&opts);  // 释放字典
+                goto fail;  // 跳转到 fail 标签
             }
         }
 
-        av_dict_free(&opts);
+        av_dict_free(&opts);  // 释放字典
     }
 
     /* validate replace string */
     {
-        const uint8_t *p = (*wctx)->string_validation_replacement;
-        const uint8_t *endp = p + strlen(p);
-        while (*p) {
-            const uint8_t *p0 = p;
-            int32_t code;
-            ret = av_utf8_decode(&code, &p, endp, (*wctx)->string_validation_utf8_flags);
-            if (ret < 0) {
-                AVBPrint bp;
-                av_bprint_init(&bp, 0, AV_BPRINT_SIZE_AUTOMATIC);
-                bprint_bytes(&bp, p0, p-p0),
+        const uint8_t *p = (*wctx)->string_validation_replacement;  // 获取替换字符串
+        const uint8_t *endp = p + strlen(p);  // 计算字符串末尾位置
+
+        while (*p) {  // 遍历字符串
+            const uint8_t *p0 = p;  // 保存当前位置
+            int32_t code;  // 定义编码变量
+            ret = av_utf8_decode(&code, &p, endp, (*wctx)->string_validation_utf8_flags);  // 解码 UTF-8 字符，如果失败
+            if (ret < 0) {  // 如果解码失败
+                AVBPrint bp;  // 定义打印缓冲区
+                av_bprint_init(&bp, 0, AV_BPRINT_SIZE_AUTOMATIC);  // 初始化打印缓冲区
+                bprint_bytes(&bp, p0, p - p0),  // 打印字节
                     av_log(wctx, AV_LOG_ERROR,
                            "Invalid UTF8 sequence %s found in string validation replace '%s'\n",
-                           bp.str, (*wctx)->string_validation_replacement);
-                return ret;
+                           bp.str, (*wctx)->string_validation_replacement);  // 记录错误日志
+                return ret;  // 返回错误码
             }
         }
     }
 
-    if (!output_filename) {
-        (*wctx)->writer_w8 = writer_w8_printf;
-        (*wctx)->writer_put_str = writer_put_str_printf;
-        (*wctx)->writer_printf = writer_printf_printf;
-    } else {
-        if ((ret = avio_open(&(*wctx)->avio, output, AVIO_FLAG_WRITE)) < 0) {
+    if (!output_filename) {  // 如果没有输出文件名
+        (*wctx)->writer_w8 = writer_w8_printf;  // 设置写 8 位的函数
+        (*wctx)->writer_put_str = writer_put_str_printf;  // 设置写字符串的函数
+        (*wctx)->writer_printf = writer_printf_printf;  // 设置打印的函数
+    } else {  // 否则
+        if ((ret = avio_open(&(*wctx)->avio, output, AVIO_FLAG_WRITE)) < 0) {  // 打开输出文件，如果失败
             av_log(*wctx, AV_LOG_ERROR,
-                   "Failed to open output '%s' with error: %s\n", output, av_err2str(ret));
-            goto fail;
+                   "Failed to open output '%s' with error: %s\n", output, av_err2str(ret));  // 记录错误日志
+            goto fail;  // 跳转到 fail 标签
         }
-        (*wctx)->writer_w8 = writer_w8_avio;
-        (*wctx)->writer_put_str = writer_put_str_avio;
-        (*wctx)->writer_printf = writer_printf_avio;
+        (*wctx)->writer_w8 = writer_w8_avio;  // 设置写 8 位的函数
+        (*wctx)->writer_put_str = writer_put_str_avio;  // 设置写字符串的函数
+        (*wctx)->writer_printf = writer_printf_avio;  // 设置打印的函数
     }
 
-    for (i = 0; i < SECTION_MAX_NB_LEVELS; i++)
+    for (i = 0; i < SECTION_MAX_NB_LEVELS; i++)  // 初始化多个缓冲区
         av_bprint_init(&(*wctx)->section_pbuf[i], 1, AV_BPRINT_SIZE_UNLIMITED);
 
-    if ((*wctx)->writer->init)
-        ret = (*wctx)->writer->init(*wctx);
-    if (ret < 0)
-        goto fail;
+    if ((*wctx)->writer->init)  // 如果写者有初始化函数
+        ret = (*wctx)->writer->init(*wctx);  // 调用初始化函数，如果失败
+    if (ret < 0)  // 如果初始化失败
+        goto fail;  // 跳转到 fail 标签
 
-    return 0;
+    return 0;  // 成功返回 0
 
-fail:
-    writer_close(wctx);
-    return ret;
+fail:  // fail 标签
+    writer_close(wctx);  // 关闭写者
+    return ret;  // 返回错误码
 }
 
 static inline void writer_print_section_header(WriterContext *wctx,
                                                const void *data,
                                                int section_id)
 {
+    // 定义一个整型变量 `parent_section_id`，用于存储父级章节的 ID
     int parent_section_id;
-    wctx->level++;
-    av_assert0(wctx->level < SECTION_MAX_NB_LEVELS);
-    parent_section_id = wctx->level ?
-        (wctx->section[wctx->level-1])->id : SECTION_ID_NONE;
 
+    // 将 `wctx` 中的层级计数加 1-
+    wctx->level++;
+
+    // 断言 `wctx` 中的层级小于预定义的最大层级数 `SECTION_MAX_NB_LEVELS`
+    av_assert0(wctx->level < SECTION_MAX_NB_LEVELS);
+
+    // 如果当前层级不为 0，将父级章节 ID 设置为上一层级的章节 ID；否则设置为特定的无章节 ID 值 `SECTION_ID_NONE`
+    parent_section_id = wctx->level?
+        (wctx->section[wctx->level - 1])->id : SECTION_ID_NONE;
+
+    // 将当前层级的项目计数重置为 0
     wctx->nb_item[wctx->level] = 0;
+
+    // 将当前层级的章节指针设置为指定的章节
     wctx->section[wctx->level] = &wctx->sections[section_id];
 
+    // 如果当前章节 ID 是 `SECTION_ID_PACKETS_AND_FRAMES`
     if (section_id == SECTION_ID_PACKETS_AND_FRAMES) {
+        // 将与数据包和帧相关的计数都重置为 0
         wctx->nb_section_packet = wctx->nb_section_frame =
         wctx->nb_section_packet_frame = 0;
-    } else if (parent_section_id == SECTION_ID_PACKETS_AND_FRAMES) {
-        wctx->nb_section_packet_frame = section_id == SECTION_ID_PACKET ?
+    } 
+    // 如果父级章节 ID 是 `SECTION_ID_PACKETS_AND_FRAMES`
+    else if (parent_section_id == SECTION_ID_PACKETS_AND_FRAMES) {
+        // 根据当前章节 ID 是 `SECTION_ID_PACKET` 还是其他，更新 `wctx->nb_section_packet_frame` 的值
+        wctx->nb_section_packet_frame = section_id == SECTION_ID_PACKET?
             wctx->nb_section_packet : wctx->nb_section_frame;
     }
 
+    // 如果 `wctx->writer` 的 `print_section_header` 函数指针不为空
     if (wctx->writer->print_section_header)
+        // 调用该函数来打印章节头
         wctx->writer->print_section_header(wctx, data);
 }
 
 static inline void writer_print_section_footer(WriterContext *wctx)
 {
+    // 获取当前层级的章节 ID
     int section_id = wctx->section[wctx->level]->id;
+    // 如果当前层级有父层级，获取父层级的章节 ID；否则设为无章节的标识
     int parent_section_id = wctx->level ?
-        wctx->section[wctx->level-1]->id : SECTION_ID_NONE;
+        wctx->section[wctx->level - 1]->id : SECTION_ID_NONE;
 
+    // 如果有父层级
     if (parent_section_id != SECTION_ID_NONE)
-        wctx->nb_item[wctx->level-1]++;
+        // 将父层级的项目数量加 1
+        wctx->nb_item[wctx->level - 1]++;
+    // 如果父层级是 `SECTION_ID_PACKETS_AND_FRAMES`
     if (parent_section_id == SECTION_ID_PACKETS_AND_FRAMES) {
+        // 如果当前章节是 `SECTION_ID_PACKET`，对应的数据包数量加 1
         if (section_id == SECTION_ID_PACKET) wctx->nb_section_packet++;
-        else                                     wctx->nb_section_frame++;
+        // 否则是帧，对应的帧数量加 1
+        else wctx->nb_section_frame++;
     }
+    // 如果 `wctx` 的 `writer` 中的 `print_section_footer` 函数指针不为空
     if (wctx->writer->print_section_footer)
+        // 调用该函数来打印章节尾
         wctx->writer->print_section_footer(wctx);
+    // 将层级减 1
     wctx->level--;
 }
 
@@ -1044,26 +1152,26 @@ static void writer_print_integers(WriterContext *wctx, const char *name,
 
 static const Writer *registered_writers[MAX_REGISTERED_WRITERS_NB + 1];
 
-static int writer_register(const Writer *writer)
+static int writer_register(const Writer *writer)  // 定义一个静态函数 writer_register，返回整数，接受一个指向 Writer 的常量指针作为参数
 {
-    static int next_registered_writer_idx = 0;
+    static int next_registered_writer_idx = 0;  // 定义一个静态整数变量 next_registered_writer_idx 并初始化为 0
 
-    if (next_registered_writer_idx == MAX_REGISTERED_WRITERS_NB)
-        return AVERROR(ENOMEM);
+    if (next_registered_writer_idx == MAX_REGISTERED_WRITERS_NB)  // 如果已注册的写者索引达到最大值
+        return AVERROR(ENOMEM);  // 返回内存不足的错误码
 
-    registered_writers[next_registered_writer_idx++] = writer;
-    return 0;
+    registered_writers[next_registered_writer_idx++] = writer;  // 将传入的写者指针存入数组，并将索引递增
+    return 0;  // 注册成功，返回 0
 }
 
-static const Writer *writer_get_by_name(const char *name)
+static const Writer *writer_get_by_name(const char *name)  // 定义一个静态函数 writer_get_by_name，返回一个指向 Writer 的常量指针，接受一个常量字符指针 name 作为参数
 {
-    int i;
+    int i;  // 定义一个整数变量 i
 
-    for (i = 0; registered_writers[i]; i++)
-        if (!strcmp(registered_writers[i]->name, name))
-            return registered_writers[i];
+    for (i = 0; registered_writers[i]; i++)  // 从 0 开始遍历 registered_writers 数组，直到遇到空指针
+        if (!strcmp(registered_writers[i]->name, name))  // 比较当前注册的写者的名称和输入的名称是否相同
+            return registered_writers[i];  // 如果相同，返回该写者的指针
 
-    return NULL;
+    return NULL;  // 如果遍历完都没有找到匹配的名称，返回空指针
 }
 
 
@@ -1977,21 +2085,22 @@ static Writer xml_writer = {
     .priv_class           = &xml_class,
 };
 
-static void writer_register_all(void)
+static void writer_register_all(void)  // 定义一个静态的无返回值函数 writer_register_all
 {
-    static int initialized;
+    static int initialized;  // 定义一个静态整型变量 initialized
 
-    if (initialized)
-        return;
-    initialized = 1;
+    if (initialized)  // 如果 initialized 已经被设置为 1
+        return;  // 函数直接返回，不执行后续操作
 
-    writer_register(&default_writer);
-    writer_register(&compact_writer);
-    writer_register(&csv_writer);
-    writer_register(&flat_writer);
-    writer_register(&ini_writer);
-    writer_register(&json_writer);
-    writer_register(&xml_writer);
+    initialized = 1;  // 将 initialized 设置为 1
+
+    writer_register(&default_writer);  // 调用 writer_register 函数注册 default_writer
+    writer_register(&compact_writer);  // 调用 writer_register 函数注册 compact_writer
+    writer_register(&csv_writer);  // 调用 writer_register 函数注册 csv_writer
+    writer_register(&flat_writer);  // 调用 writer_register 函数注册 flat_writer
+    writer_register(&ini_writer);  // 调用 writer_register 函数注册 ini_writer
+    writer_register(&json_writer);  // 调用 writer_register 函数注册 json_writer
+    writer_register(&xml_writer);  // 调用 writer_register 函数注册 xml_writer
 }
 
 #define print_fmt(k, f, ...) do {              \
@@ -2040,21 +2149,31 @@ static void writer_register_all(void)
     memset( (ptr) + (cur_n), 0, ((new_n) - (cur_n)) * sizeof(*(ptr)) ); \
 }
 
+// 定义一个静态内联函数 show_tags，返回整型，接受三个参数
 static inline int show_tags(WriterContext *w, AVDictionary *tags, int section_id)
 {
-    const AVDictionaryEntry *tag = NULL;
-    int ret = 0;
+    // 定义一个指向 AVDictionaryEntry 结构体的常量指针 tag，并初始化为 NULL
+    const AVDictionaryEntry *tag = NULL; 
+    // 定义一个整型变量 ret 并初始化为 0，用于存储函数的返回值
+    int ret = 0; 
 
+    // 如果 tags 为空指针，即没有有效的字典，直接返回 0
     if (!tags)
         return 0;
+    // 调用 writer_print_section_header 函数打印节头
     writer_print_section_header(w, NULL, section_id);
 
-    while ((tag = av_dict_iterate(tags, tag))) {
+    // 当通过 av_dict_iterate 函数迭代 tags 字典有结果时进入循环
+    while ((tag = av_dict_iterate(tags, tag))) { 
+        // 调用 print_str_validate 函数，将返回值赋给 ret
+        // 如果返回值小于 0，执行 break 语句，退出循环
         if ((ret = print_str_validate(tag->key, tag->value)) < 0)
             break;
     }
+    // 调用 writer_print_section_footer 函数打印节尾
     writer_print_section_footer(w);
 
+    // 返回 ret 的值
     return ret;
 }
 
@@ -3244,89 +3363,131 @@ static void print_dispositions(WriterContext *w, uint32_t disposition, SectionID
 #define IN_PROGRAM 1
 #define IN_STREAM_GROUP 2
 
+// 定义一个静态函数 show_stream，返回整型，接受多个参数
 static int show_stream(WriterContext *w, AVFormatContext *fmt_ctx, int stream_idx, InputStream *ist, int container)
 {
+    // 获取输入流 ist 中的 AVStream 结构体指针
     AVStream *stream = ist->st;
+    // 声明 AVCodecParameters 类型的指针 par
     AVCodecParameters *par;
+    // 声明 AVCodecContext 类型的指针 dec_ctx
     AVCodecContext *dec_ctx;
+    // 定义一个 128 字节的字符数组 val_str
     char val_str[128];
+    // 声明字符指针 s
     const char *s;
+    // 声明 AVRational 类型的变量 sar 和 dar，用于表示比率
     AVRational sar, dar;
+    // 声明 AVBPrint 类型的变量 pbuf
     AVBPrint pbuf;
     const AVCodecDescriptor *cd;
+    // 定义一个包含不同 SectionID 的数组 section_header
     const SectionID section_header[] = {
         SECTION_ID_STREAM,
         SECTION_ID_PROGRAM_STREAM,
         SECTION_ID_STREAM_GROUP_STREAM,
     };
+    // 定义一个包含不同 SectionID 的数组 section_disposition
     const SectionID section_disposition[] = {
         SECTION_ID_STREAM_DISPOSITION,
         SECTION_ID_PROGRAM_STREAM_DISPOSITION,
         SECTION_ID_STREAM_GROUP_STREAM_DISPOSITION,
     };
+    // 定义一个包含不同 SectionID 的数组 section_tags
     const SectionID section_tags[] = {
         SECTION_ID_STREAM_TAGS,
         SECTION_ID_PROGRAM_STREAM_TAGS,
         SECTION_ID_STREAM_GROUP_STREAM_TAGS,
     };
+    // 定义整型变量 ret 并初始化为 0，用于存储函数返回值
     int ret = 0;
+    // 定义字符指针 profile 并初始化为 NULL
     const char *profile = NULL;
 
+    // 断言 container 的值小于 section_header 数组的元素个数
     av_assert0(container < FF_ARRAY_ELEMS(section_header));
 
+    // 初始化 AVBPrint 结构体 pbuf
     av_bprint_init(&pbuf, 1, AV_BPRINT_SIZE_UNLIMITED);
 
+    // 调用 writer_print_section_header 函数打印节头
     writer_print_section_header(w, NULL, section_header[container]);
 
+    // 打印整数类型的键值对 "index" 和流的索引值
     print_int("index", stream->index);
 
+    // 将 par 指向流的编解码器参数
     par     = stream->codecpar;
+    // 将 dec_ctx 指向输入流 ist 的解码上下文
     dec_ctx = ist->dec_ctx;
+    // 如果通过 avcodec_descriptor_get 函数获取到编解码器描述符
     if (cd = avcodec_descriptor_get(par->codec_id)) {
+        // 打印字符串类型的键值对 "codec_name" 和编解码器名称
         print_str("codec_name", cd->name);
+        // 如果不是精确比特输出模式
         if (!do_bitexact) {
+            // 打印字符串类型的键值对 "codec_long_name" 和编解码器的长名称（如果有），否则为 "unknown"
             print_str("codec_long_name",
                       cd->long_name ? cd->long_name : "unknown");
         }
     } else {
+        // 如果未获取到编解码器描述符，打印可选的字符串类型的键值对 "codec_name" 为 "unknown"
         print_str_opt("codec_name", "unknown");
+        // 如果不是精确比特输出模式
         if (!do_bitexact) {
+            // 打印可选的字符串类型的键值对 "codec_long_name" 为 "unknown"
             print_str_opt("codec_long_name", "unknown");
         }
     }
 
+    // 如果不是精确比特输出模式并且通过 avcodec_profile_name 函数获取到编解码器的配置文件名称
     if (!do_bitexact && (profile = avcodec_profile_name(par->codec_id, par->profile)))
+        // 打印字符串类型的键值对 "profile" 和配置文件名称
         print_str("profile", profile);
     else {
+        // 如果配置文件不是未知的
         if (par->profile != AV_PROFILE_UNKNOWN) {
+            // 创建一个字符数组 profile_num
             char profile_num[12];
+            // 将配置文件的值格式化为字符串存储在 profile_num 中
             snprintf(profile_num, sizeof(profile_num), "%d", par->profile);
+            // 打印字符串类型的键值对 "profile" 和格式化后的配置文件值
             print_str("profile", profile_num);
         } else
+            // 打印可选的字符串类型的键值对 "profile" 为 "unknown"
             print_str_opt("profile", "unknown");
     }
 
+    // 获取媒体类型的字符串表示，如果有则打印对应的键值对
     s = av_get_media_type_string(par->codec_type);
     if (s) print_str    ("codec_type", s);
     else   print_str_opt("codec_type", "unknown");
 
-    /* print AVI/FourCC tag */
+    // 打印 AVI/FourCC 标签相关的字符串和格式化值
     print_str("codec_tag_string",    av_fourcc2str(par->codec_tag));
     print_fmt("codec_tag", "0x%04"PRIx32, par->codec_tag);
 
+    // 根据编解码器类型进行不同的处理
     switch (par->codec_type) {
-    case AVMEDIA_TYPE_VIDEO:
+    case AVMEDIA_TYPE_VIDEO: // 如果是视频类型
+        // 打印视频的宽度、高度等参数
         print_int("width",        par->width);
         print_int("height",       par->height);
+        // 如果有解码上下文
         if (dec_ctx) {
+            // 打印编码后的宽度、高度等参数
             print_int("coded_width",  dec_ctx->coded_width);
             print_int("coded_height", dec_ctx->coded_height);
             print_int("closed_captions", !!(dec_ctx->properties & FF_CODEC_PROPERTY_CLOSED_CAPTIONS));
             print_int("film_grain", !!(dec_ctx->properties & FF_CODEC_PROPERTY_FILM_GRAIN));
         }
+        // 打印是否有 B 帧的信息
         print_int("has_b_frames", par->video_delay);
+        // 猜测采样纵横比
         sar = av_guess_sample_aspect_ratio(fmt_ctx, stream, NULL);
+        // 如果采样纵横比有值
         if (sar.num) {
+            // 打印采样纵横比和显示纵横比
             print_q("sample_aspect_ratio", sar, ':');
             av_reduce(&dar.num, &dar.den,
                       (int64_t) par->width  * sar.num,
@@ -3334,20 +3495,25 @@ static int show_stream(WriterContext *w, AVFormatContext *fmt_ctx, int stream_id
                       1024*1024);
             print_q("display_aspect_ratio", dar, ':');
         } else {
+            // 如果没有采样纵横比，打印可选的字符串 "N/A"
             print_str_opt("sample_aspect_ratio", "N/A");
             print_str_opt("display_aspect_ratio", "N/A");
         }
+        // 获取像素格式的名称，如果有则打印对应的键值对
         s = av_get_pix_fmt_name(par->format);
         if (s) print_str    ("pix_fmt", s);
         else   print_str_opt("pix_fmt", "unknown");
+        // 打印视频的级别
         print_int("level",   par->level);
 
+        // 打印颜色范围、颜色空间、颜色传输特性和颜色基色相关的信息
         print_color_range(w, par->color_range);
         print_color_space(w, par->color_space);
         print_color_trc(w, par->color_trc);
         print_primaries(w, par->color_primaries);
         print_chroma_location(w, par->chroma_location);
 
+        // 根据场序打印对应的字符串
         if (par->field_order == AV_FIELD_PROGRESSIVE)
             print_str("field_order", "progressive");
         else if (par->field_order == AV_FIELD_TT)
@@ -3361,30 +3527,38 @@ static int show_stream(WriterContext *w, AVFormatContext *fmt_ctx, int stream_id
         else
             print_str_opt("field_order", "unknown");
 
+        // 如果有解码上下文，打印引用数量
         if (dec_ctx)
             print_int("refs", dec_ctx->refs);
         break;
 
-    case AVMEDIA_TYPE_AUDIO:
+    case AVMEDIA_TYPE_AUDIO: // 如果是音频类型
+        // 获取采样格式的名称，如果有则打印对应的键值对
         s = av_get_sample_fmt_name(par->format);
         if (s) print_str    ("sample_fmt", s);
         else   print_str_opt("sample_fmt", "unknown");
+        // 打印采样率等参数
         print_val("sample_rate",     par->sample_rate, unit_hertz_str);
         print_int("channels",        par->ch_layout.nb_channels);
 
+        // 如果声道布局的顺序不是未指定
         if (par->ch_layout.order != AV_CHANNEL_ORDER_UNSPEC) {
+            // 描述声道布局并打印对应的键值对
             av_channel_layout_describe(&par->ch_layout, val_str, sizeof(val_str));
             print_str    ("channel_layout", val_str);
         } else {
+            // 否则打印可选的字符串 "unknown"
             print_str_opt("channel_layout", "unknown");
         }
 
+        // 打印每个样本的比特数、初始填充等参数
         print_int("bits_per_sample", av_get_bits_per_sample(par->codec_id));
 
         print_int("initial_padding", par->initial_padding);
         break;
 
-    case AVMEDIA_TYPE_SUBTITLE:
+    case AVMEDIA_TYPE_SUBTITLE: // 如果是字幕类型
+        // 打印宽度和高度参数，如果没有则打印 "N/A"
         if (par->width)
             print_int("width",       par->width);
         else
@@ -3396,15 +3570,26 @@ static int show_stream(WriterContext *w, AVFormatContext *fmt_ctx, int stream_id
         break;
     }
 
+    // 如果需要显示私有数据
     if (show_private_data) {
+        // 如果有解码上下文且其编解码器的私有类存在
         if (dec_ctx && dec_ctx->codec->priv_class)
+            // 打印私有数据
             print_private_data(w, dec_ctx->priv_data);
+        // 如果输入格式的私有类存在
         if (fmt_ctx->iformat->priv_class)
+            // 打印私有数据
             print_private_data(w, fmt_ctx->priv_data);
     }
 
-    if (fmt_ctx->iformat->flags & AVFMT_SHOW_IDS) print_fmt    ("id", "0x%x", stream->id);
-    else                                          print_str_opt("id", "N/A");
+    // 如果输入格式标志设置为显示 ID
+    if (fmt_ctx->iformat->flags & AVFMT_SHOW_IDS)
+        // 打印流的 ID
+        print_fmt    ("id", "0x%x", stream->id);
+    else
+        // 否则打印可选的字符串 "N/A"
+        print_str_opt("id", "N/A");
+    // 打印帧率等参数
     print_q("r_frame_rate",   stream->r_frame_rate,   '/');
     print_q("avg_frame_rate", stream->avg_frame_rate, '/');
     print_q("time_base",      stream->time_base,      '/');
@@ -3412,55 +3597,85 @@ static int show_stream(WriterContext *w, AVFormatContext *fmt_ctx, int stream_id
     print_time("start_time",  stream->start_time, &stream->time_base);
     print_ts  ("duration_ts", stream->duration);
     print_time("duration",    stream->duration, &stream->time_base);
-    if (par->bit_rate > 0)     print_val    ("bit_rate", par->bit_rate, unit_bit_per_second_str);
-    else                       print_str_opt("bit_rate", "N/A");
+    // 如果比特率大于 0，打印比特率
+    if (par->bit_rate > 0)     
+        print_val("bit_rate", par->bit_rate, unit_bit_per_second_str);
+    else
+        // 否则打印可选的字符串 "N/A"
+        print_str_opt("bit_rate", "N/A");
+    // 如果解码上下文的最大比特率大于 0，打印最大比特率
     if (dec_ctx && dec_ctx->rc_max_rate > 0)
         print_val ("max_bit_rate", dec_ctx->rc_max_rate, unit_bit_per_second_str);
     else
+        // 否则打印可选的字符串 "N/A"
         print_str_opt("max_bit_rate", "N/A");
+    // 如果解码上下文的每个原始样本的比特数大于 0，打印对应的值
     if (dec_ctx && dec_ctx->bits_per_raw_sample > 0) print_fmt("bits_per_raw_sample", "%d", dec_ctx->bits_per_raw_sample);
     else                                             print_str_opt("bits_per_raw_sample", "N/A");
+    // 如果流中的帧数不为 0，打印帧数
     if (stream->nb_frames) print_fmt    ("nb_frames", "%"PRId64, stream->nb_frames);
     else                   print_str_opt("nb_frames", "N/A");
+    // 如果流中读取的帧数不为 0，打印读取的帧数
     if (nb_streams_frames[stream_idx])  print_fmt    ("nb_read_frames", "%"PRIu64, nb_streams_frames[stream_idx]);
     else                                print_str_opt("nb_read_frames", "N/A");
+    // 如果流中读取的包数不为 0，打印读取的包数
     if (nb_streams_packets[stream_idx]) print_fmt    ("nb_read_packets", "%"PRIu64, nb_streams_packets[stream_idx]);
     else                                print_str_opt("nb_read_packets", "N/A");
+    // 如果需要显示数据
     if (do_show_data)
+        // 打印数据
         writer_print_data(w, "extradata", par->extradata,
                                           par->extradata_size);
 
+    // 如果有额外数据且数据大小大于 0
     if (par->extradata_size > 0) {
+        // 打印额外数据的大小
         print_int("extradata_size", par->extradata_size);
+        // 打印额外数据的哈希值
         writer_print_data_hash(w, "extradata_hash", par->extradata,
                                                     par->extradata_size);
     }
 
-    /* Print disposition information */
+    // 如果需要打印流的配置信息
     if (do_show_stream_disposition) {
+        // 断言 container 的值小于 section_disposition 数组的元素个数
         av_assert0(container < FF_ARRAY_ELEMS(section_disposition));
+        // 打印流的配置信息
         print_dispositions(w, stream->disposition, section_disposition[container]);
     }
 
+    // 如果需要打印流的标签
     if (do_show_stream_tags) {
+        // 断言 container 的值小于 section_tags 数组的元素个数
         av_assert0(container < FF_ARRAY_ELEMS(section_tags));
+        // 调用 show_tags 函数打印流的标签，并将返回值赋给 ret
         ret = show_tags(w, stream->metadata, section_tags[container]);
     }
 
+    // 如果流的编解码器参数中有编码的边数据
     if (stream->codecpar->nb_coded_side_data) {
+        // 打印边数据列表的节头
         writer_print_section_header(w, NULL, SECTION_ID_STREAM_SIDE_DATA_LIST);
+        // 遍历边数据
         for (int i = 0; i < stream->codecpar->nb_coded_side_data; i++) {
+            // 打印每个边数据
             print_pkt_side_data(w, stream->codecpar, &stream->codecpar->coded_side_data[i],
                                 SECTION_ID_STREAM_SIDE_DATA);
+            // 打印边数据的节尾
             writer_print_section_footer(w);
         }
+        // 打印边数据列表的节尾
         writer_print_section_footer(w);
     }
 
+    // 打印节尾
     writer_print_section_footer(w);
+    // 完成 AVBPrint 的操作
     av_bprint_finalize(&pbuf, NULL);
+    // 刷新标准输出
     fflush(stdout);
 
+    // 返回函数的返回值
     return ret;
 }
 
@@ -3483,50 +3698,90 @@ static int show_streams(WriterContext *w, InputFile *ifile)
 
 static int show_program(WriterContext *w, InputFile *ifile, AVProgram *program)
 {
+    // 获取输入文件的格式上下文
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
+    // 定义循环变量 i 和返回值 ret，并初始化为 0
     int i, ret = 0;
 
+    // 打印程序部分的节头
     writer_print_section_header(w, NULL, SECTION_ID_PROGRAM);
+
+    // 打印程序的 ID
     print_int("program_id", program->id);
+    // 打印程序的编号
     print_int("program_num", program->program_num);
+    // 打印程序中的流数量
     print_int("nb_streams", program->nb_stream_indexes);
+    // 打印节目映射表（PMT）的 PID
     print_int("pmt_pid", program->pmt_pid);
+    // 打印节目时钟参考（PCR）的 PID
     print_int("pcr_pid", program->pcr_pid);
+
+    // 如果需要显示程序的标签
     if (do_show_program_tags)
+        // 调用 `show_tags` 函数显示标签，并获取返回值
         ret = show_tags(w, program->metadata, SECTION_ID_PROGRAM_TAGS);
+    // 如果返回值小于 0（表示出现错误）
     if (ret < 0)
+        // 跳转到 `end` 标签处
         goto end;
 
+    // 打印程序流部分的节头
     writer_print_section_header(w, NULL, SECTION_ID_PROGRAM_STREAMS);
+
+    // 遍历程序中的流索引
     for (i = 0; i < program->nb_stream_indexes; i++) {
+        // 如果对应的流被选中
         if (selected_streams[program->stream_index[i]]) {
+            // 显示流的相关内容，并获取返回值
             ret = show_stream(w, fmt_ctx, program->stream_index[i], &ifile->streams[program->stream_index[i]], IN_PROGRAM);
+            // 如果返回值小于 0（表示出现错误）
             if (ret < 0)
+                // 中断循环
                 break;
         }
     }
+
+    // 打印程序流部分的节尾
     writer_print_section_footer(w);
 
 end:
+    // 打印程序部分的节尾
     writer_print_section_footer(w);
+
+    // 返回函数的执行结果
     return ret;
 }
 
 static int show_programs(WriterContext *w, InputFile *ifile)
 {
+    // 获取输入文件的格式上下文
     AVFormatContext *fmt_ctx = ifile->fmt_ctx;
+    // 定义循环变量 i 和返回值 ret，并初始化为 0
     int i, ret = 0;
 
+    // 打印程序部分的节头
     writer_print_section_header(w, NULL, SECTION_ID_PROGRAMS);
+
+    // 遍历格式上下文中的程序
     for (i = 0; i < fmt_ctx->nb_programs; i++) {
+        // 获取当前的程序
         AVProgram *program = fmt_ctx->programs[i];
+        // 如果当前程序为空，跳过本次循环
         if (!program)
             continue;
+        // 显示当前程序的相关内容，并获取返回值
         ret = show_program(w, ifile, program);
+        // 如果返回值小于 0（表示出现错误）
         if (ret < 0)
+            // 中断循环
             break;
     }
+
+    // 打印程序部分的节尾
     writer_print_section_footer(w);
+
+    // 返回函数的执行结果
     return ret;
 }
 
@@ -3844,182 +4099,205 @@ static void show_error(WriterContext *w, int err)
 }
 
 static int open_input_file(InputFile *ifile, const char *filename,
-                           const char *print_filename)
+                           const char *print_filename)  // 定义一个静态函数 open_input_file，返回整数，接受输入文件结构体指针、文件名和打印文件名
 {
-    int err, i;
-    AVFormatContext *fmt_ctx = NULL;
-    const AVDictionaryEntry *t = NULL;
-    int scan_all_pmts_set = 0;
+    int err, i;  // 定义错误码和循环变量
+    AVFormatContext *fmt_ctx = NULL;  // 定义格式上下文指针并初始化为 NULL
+    const AVDictionaryEntry *t = NULL;  // 定义字典条目指针并初始化为 NULL
+    int scan_all_pmts_set = 0;  // 定义标志变量
 
-    fmt_ctx = avformat_alloc_context();
-    if (!fmt_ctx)
-        return AVERROR(ENOMEM);
+    fmt_ctx = avformat_alloc_context();  // 分配格式上下文内存
+    if (!fmt_ctx)  // 如果分配失败
+        return AVERROR(ENOMEM);  // 返回内存不足错误码
 
-    if (!av_dict_get(format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE)) {
-        av_dict_set(&format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
-        scan_all_pmts_set = 1;
+    if (!av_dict_get(format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE)) {  // 如果字典中没有特定选项
+        av_dict_set(&format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);  // 设置该选项
+        scan_all_pmts_set = 1;  // 标记该选项已设置
     }
     if ((err = avformat_open_input(&fmt_ctx, filename,
-                                   iformat, &format_opts)) < 0) {
-        print_error(filename, err);
-        return err;
+                                   iformat, &format_opts)) < 0) {  // 打开输入文件，如果出错
+        print_error(filename, err);  // 打印错误信息
+        return err;  // 返回错误码
     }
-    if (print_filename) {
-        av_freep(&fmt_ctx->url);
-        fmt_ctx->url = av_strdup(print_filename);
+    if (print_filename) {  // 如果有打印文件名
+        av_freep(&fmt_ctx->url);  // 释放原有的 URL 内存
+        fmt_ctx->url = av_strdup(print_filename);  // 复制新的打印文件名
     }
-    ifile->fmt_ctx = fmt_ctx;
-    if (scan_all_pmts_set)
-        av_dict_set(&format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE);
-    while ((t = av_dict_iterate(format_opts, t)))
-        av_log(NULL, AV_LOG_WARNING, "Option %s skipped - not known to demuxer.\n", t->key);
+    ifile->fmt_ctx = fmt_ctx;  // 将格式上下文保存到输入文件结构体中
+    if (scan_all_pmts_set)  // 如果之前设置了特定选项
+        av_dict_set(&format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE);  // 恢复字典选项设置
 
-    if (find_stream_info) {
-        AVDictionary **opts;
-        int orig_nb_streams = fmt_ctx->nb_streams;
+    while ((t = av_dict_iterate(format_opts, t)))  // 遍历字典中的选项
+        av_log(NULL, AV_LOG_WARNING, "Option %s skipped - not known to demuxer.\n", t->key);  // 记录警告日志
 
-        err = setup_find_stream_info_opts(fmt_ctx, codec_opts, &opts);
+    if (find_stream_info) {  // 如果需要查找流信息
+        AVDictionary **opts;  // 定义字典指针数组
+        int orig_nb_streams = fmt_ctx->nb_streams;  // 保存原始的流数量
+
+        err = setup_find_stream_info_opts(fmt_ctx, codec_opts, &opts);  // 设置查找流信息的选项，如果出错
         if (err < 0)
-            return err;
+            return err;  // 返回错误码
 
-        err = avformat_find_stream_info(fmt_ctx, opts);
+        err = avformat_find_stream_info(fmt_ctx, opts);  // 查找流信息，如果出错
 
-        for (i = 0; i < orig_nb_streams; i++)
-            av_dict_free(&opts[i]);
-        av_freep(&opts);
+        for (i = 0; i < orig_nb_streams; i++)  // 遍历原始的流数量
+            av_dict_free(&opts[i]);  // 释放每个字典的内存
+        av_freep(&opts);  // 释放字典指针数组的内存
 
-        if (err < 0) {
-            print_error(filename, err);
-            return err;
+        if (err < 0) {  // 如果查找流信息出错
+            print_error(filename, err);  // 打印错误信息
+            return err;  // 返回错误码
         }
     }
 
-    av_dump_format(fmt_ctx, 0, filename, 0);
+    av_dump_format(fmt_ctx, 0, filename, 0);  // 打印格式信息
 
-    ifile->streams = av_calloc(fmt_ctx->nb_streams, sizeof(*ifile->streams));
-    if (!ifile->streams)
-        exit(1);
-    ifile->nb_streams = fmt_ctx->nb_streams;
+    ifile->streams = av_calloc(fmt_ctx->nb_streams, sizeof(*ifile->streams));  // 为流分配内存
+    if (!ifile->streams)  // 如果分配失败
+        exit(1);  // 退出程序
+    ifile->nb_streams = fmt_ctx->nb_streams;  // 保存流的数量
 
     /* bind a decoder to each input stream */
-    for (i = 0; i < fmt_ctx->nb_streams; i++) {
-        InputStream *ist = &ifile->streams[i];
-        AVStream *stream = fmt_ctx->streams[i];
-        const AVCodec *codec;
+    for (i = 0; i < fmt_ctx->nb_streams; i++) {  // 遍历每个输入流
+        InputStream *ist = &ifile->streams[i];  // 获取输入流结构体指针
+        AVStream *stream = fmt_ctx->streams[i];  // 获取流
+        const AVCodec *codec;  // 定义编解码器指针
 
-        ist->st = stream;
+        ist->st = stream;  // 保存流到输入流结构体
 
-        if (stream->codecpar->codec_id == AV_CODEC_ID_PROBE) {
+        if (stream->codecpar->codec_id == AV_CODEC_ID_PROBE) {  // 如果编解码器 ID 是探测类型
             av_log(NULL, AV_LOG_WARNING,
                    "Failed to probe codec for input stream %d\n",
-                    stream->index);
-            continue;
+                    stream->index);  // 记录警告日志
+            continue;  // 继续下一个流
         }
 
-        codec = avcodec_find_decoder(stream->codecpar->codec_id);
-        if (!codec) {
+        codec = avcodec_find_decoder(stream->codecpar->codec_id);  // 查找编解码器
+        if (!codec) {  // 如果未找到
             av_log(NULL, AV_LOG_WARNING,
                     "Unsupported codec with id %d for input stream %d\n",
-                    stream->codecpar->codec_id, stream->index);
-            continue;
+                    stream->codecpar->codec_id, stream->index);  // 记录警告日志
+            continue;  // 继续下一个流
         }
         {
-            AVDictionary *opts;
+            AVDictionary *opts;  // 定义字典
 
             err = filter_codec_opts(codec_opts, stream->codecpar->codec_id,
-                                    fmt_ctx, stream, codec, &opts, NULL);
+                                    fmt_ctx, stream, codec, &opts, NULL);  // 过滤编解码器选项，如果出错
             if (err < 0)
-                exit(1);
+                exit(1);  // 退出程序
 
-            ist->dec_ctx = avcodec_alloc_context3(codec);
+            ist->dec_ctx = avcodec_alloc_context3(codec);  // 分配编解码器上下文内存
             if (!ist->dec_ctx)
-                exit(1);
+                exit(1);  // 退出程序
 
-            err = avcodec_parameters_to_context(ist->dec_ctx, stream->codecpar);
+            err = avcodec_parameters_to_context(ist->dec_ctx, stream->codecpar);  // 将参数转换到上下文，如果出错
             if (err < 0)
-                exit(1);
+                exit(1);  // 退出程序
 
-            if (do_show_log) {
+            if (do_show_log) {  // 如果需要显示日志
                 // For loging it is needed to disable at least frame threads as otherwise
                 // the log information would need to be reordered and matches up to contexts and frames
                 // That is in fact possible but not trivial
-                av_dict_set(&codec_opts, "threads", "1", 0);
+                av_dict_set(&codec_opts, "threads", "1", 0);  // 设置线程选项
             }
 
-            av_dict_set(&opts, "flags", "+copy_opaque", AV_DICT_MULTIKEY);
+            av_dict_set(&opts, "flags", "+copy_opaque", AV_DICT_MULTIKEY);  // 设置标志选项
 
-            ist->dec_ctx->pkt_timebase = stream->time_base;
+            ist->dec_ctx->pkt_timebase = stream->time_base;  // 设置数据包时间基准
 
-            if (avcodec_open2(ist->dec_ctx, codec, &opts) < 0) {
+            if (avcodec_open2(ist->dec_ctx, codec, &opts) < 0) {  // 打开编解码器，如果出错
                 av_log(NULL, AV_LOG_WARNING, "Could not open codec for input stream %d\n",
-                       stream->index);
-                exit(1);
+                       stream->index);  // 记录警告日志
+                exit(1);  // 退出程序
             }
 
-            if ((t = av_dict_iterate(opts, NULL))) {
+            if ((t = av_dict_iterate(opts, NULL))) {  // 遍历选项字典
                 av_log(NULL, AV_LOG_ERROR, "Option %s for input stream %d not found\n",
-                       t->key, stream->index);
-                return AVERROR_OPTION_NOT_FOUND;
+                       t->key, stream->index);  // 记录错误日志
+                return AVERROR_OPTION_NOT_FOUND;  // 返回选项未找到错误码
             }
         }
     }
 
-    ifile->fmt_ctx = fmt_ctx;
-    return 0;
+    ifile->fmt_ctx = fmt_ctx;  // 再次保存格式上下文到输入文件结构体
+    return 0;  // 成功返回 0
 }
 
-static void close_input_file(InputFile *ifile)
+static void close_input_file(InputFile *ifile)  // 定义一个静态的无返回值函数 close_input_file，接受输入文件结构体指针
 {
-    int i;
+    int i;  // 定义循环变量
 
     /* close decoder for each stream */
-    for (i = 0; i < ifile->nb_streams; i++)
-        avcodec_free_context(&ifile->streams[i].dec_ctx);
+    for (i = 0; i < ifile->nb_streams; i++)  // 遍历输入文件中的每个流
+        avcodec_free_context(&ifile->streams[i].dec_ctx);  // 释放每个流的解码器上下文
 
-    av_freep(&ifile->streams);
-    ifile->nb_streams = 0;
+    av_freep(&ifile->streams);  // 释放流数组的内存
+    ifile->nb_streams = 0;  // 将流的数量设置为 0
 
-    avformat_close_input(&ifile->fmt_ctx);
+    avformat_close_input(&ifile->fmt_ctx);  // 关闭输入文件的格式上下文
 }
 
 static int probe_file(WriterContext *wctx, const char *filename,
                       const char *print_filename)
 {
+    // 定义一个 `InputFile` 结构体变量 `ifile` 并初始化为 0
     InputFile ifile = { 0 };
+    // 定义函数返回值 `ret` 和循环变量 `i`
     int ret, i;
+    // 定义章节 ID 变量
     int section_id;
 
+    // 根据一些标志确定是否读取帧或数据包的操作
     do_read_frames = do_show_frames || do_count_frames;
     do_read_packets = do_show_packets || do_count_packets;
 
+    // 打开输入文件并获取结果
     ret = open_input_file(&ifile, filename, print_filename);
+    // 如果打开文件操作返回负值（失败）
     if (ret < 0)
+        // 跳转到 `end` 标签处
         goto end;
 
+    // 定义一个宏，用于在后续代码中检查返回值，如果小于 0 则跳转到 `end` 处
 #define CHECK_END if (ret < 0) goto end
 
+    // 获取文件中的流数量
     nb_streams = ifile.fmt_ctx->nb_streams;
-    REALLOCZ_ARRAY_STREAM(nb_streams_frames,0,ifile.fmt_ctx->nb_streams);
-    REALLOCZ_ARRAY_STREAM(nb_streams_packets,0,ifile.fmt_ctx->nb_streams);
-    REALLOCZ_ARRAY_STREAM(selected_streams,0,ifile.fmt_ctx->nb_streams);
+    // 为流相关的帧数量数组重新分配内存
+    REALLOCZ_ARRAY_STREAM(nb_streams_frames, 0, ifile.fmt_ctx->nb_streams);
+    // 为流相关的数据包数量数组重新分配内存
+    REALLOCZ_ARRAY_STREAM(nb_streams_packets, 0, ifile.fmt_ctx->nb_streams);
+    // 为流选择标志数组重新分配内存
+    REALLOCZ_ARRAY_STREAM(selected_streams, 0, ifile.fmt_ctx->nb_streams);
 
+    // 遍历文件中的流
     for (i = 0; i < ifile.fmt_ctx->nb_streams; i++) {
+        // 如果有流指定符
         if (stream_specifier) {
+            // 匹配流指定符与当前流
             ret = avformat_match_stream_specifier(ifile.fmt_ctx,
                                                   ifile.fmt_ctx->streams[i],
                                                   stream_specifier);
+            // 检查返回值，如果小于 0 则跳转到 `end` 处
             CHECK_END;
+            // 否则设置流的选择标志
             else
                 selected_streams[i] = ret;
             ret = 0;
         } else {
+            // 如果没有流指定符，将当前流标记为选中
             selected_streams[i] = 1;
         }
+        // 如果当前流未被选中
         if (!selected_streams[i])
+            // 设置流的丢弃策略
             ifile.fmt_ctx->streams[i]->discard = AVDISCARD_ALL;
     }
 
+    // 如果需要读取帧或数据包
     if (do_read_frames || do_read_packets) {
+        // 根据不同的显示需求确定章节 ID
         if (do_show_frames && do_show_packets &&
             wctx->writer->flags & WRITER_FLAG_PUT_PACKETS_AND_FRAMES_IN_SAME_CHAPTER)
             section_id = SECTION_ID_PACKETS_AND_FRAMES;
@@ -4027,44 +4305,69 @@ static int probe_file(WriterContext *wctx, const char *filename,
             section_id = SECTION_ID_PACKETS;
         else // (!do_show_packets && do_show_frames)
             section_id = SECTION_ID_FRAMES;
+        // 如果需要显示帧或数据包，打印章节头
         if (do_show_frames || do_show_packets)
             writer_print_section_header(wctx, NULL, section_id);
+        // 读取数据包
         ret = read_packets(wctx, &ifile);
+        // 如果需要显示帧或数据包，打印章节尾
         if (do_show_frames || do_show_packets)
             writer_print_section_footer(wctx);
+        // 检查返回值，如果小于 0 则跳转到 `end` 处
         CHECK_END;
     }
 
+    // 如果需要显示程序相关信息
     if (do_show_programs) {
+        // 显示程序相关内容
         ret = show_programs(wctx, &ifile);
+        // 检查返回值，如果小于 0 则跳转到 `end` 处
         CHECK_END;
     }
 
+    // 如果需要显示流组相关信息
     if (do_show_stream_groups) {
+        // 显示流组相关内容
         ret = show_stream_groups(wctx, &ifile);
+        // 检查返回值，如果小于 0 则跳转到 `end` 处
         CHECK_END;
     }
 
+    // 如果需要显示流相关信息
     if (do_show_streams) {
+        // 显示流相关内容
         ret = show_streams(wctx, &ifile);
+        // 检查返回值，如果小于 0 则跳转到 `end` 处
         CHECK_END;
     }
+
+    // 如果需要显示章节相关信息
     if (do_show_chapters) {
+        // 显示章节相关内容
         ret = show_chapters(wctx, &ifile);
+        // 检查返回值，如果小于 0 则跳转到 `end` 处
         CHECK_END;
     }
+
+    // 如果需要显示格式相关信息
     if (do_show_format) {
+        // 显示格式相关内容
         ret = show_format(wctx, &ifile);
+        // 检查返回值，如果小于 0 则跳转到 `end` 处
         CHECK_END;
     }
 
 end:
+    // 如果有文件格式上下文
     if (ifile.fmt_ctx)
+        // 关闭输入文件
         close_input_file(&ifile);
+    // 释放相关内存
     av_freep(&nb_streams_frames);
     av_freep(&nb_streams_packets);
     av_freep(&selected_streams);
 
+    // 返回函数执行结果
     return ret;
 }
 
@@ -4077,17 +4380,26 @@ static void show_usage(void)
 
 static void ffprobe_show_program_version(WriterContext *w)
 {
+    // 定义一个 `AVBPrint` 类型的变量 `pbuf` 用于字符串缓冲
     AVBPrint pbuf;
+    // 初始化 `pbuf`，缓冲区初始大小为 1，容量无上限
     av_bprint_init(&pbuf, 1, AV_BPRINT_SIZE_UNLIMITED);
 
+    // 调用 `writer_print_section_header` 函数，传入 `w` 以及 `SECTION_ID_PROGRAM_VERSION`，用于打印程序版本部分的节头
     writer_print_section_header(w, NULL, SECTION_ID_PROGRAM_VERSION);
+    // 打印一个字符串对，键为 "version"，值为 `FFMPEG_VERSION`
     print_str("version", FFMPEG_VERSION);
+    // 打印一个格式化的字符串对，键为 "copyright"，值为版权信息
     print_fmt("copyright", "Copyright (c) %d-%d the FFmpeg developers",
               program_birth_year, CONFIG_THIS_YEAR);
+    // 打印一个字符串对，键为 "compiler_ident"，值为 `CC_IDENT`
     print_str("compiler_ident", CC_IDENT);
+    // 打印一个字符串对，键为 "configuration"，值为 `FFMPEG_CONFIGURATION`
     print_str("configuration", FFMPEG_CONFIGURATION);
+    // 调用 `writer_print_section_footer` 函数打印节尾
     writer_print_section_footer(w);
 
+    // 完成字符串缓冲的处理
     av_bprint_finalize(&pbuf, NULL);
 }
 
@@ -4108,15 +4420,28 @@ static void ffprobe_show_program_version(WriterContext *w)
 
 static void ffprobe_show_library_versions(WriterContext *w)
 {
+    // 调用 `writer_print_section_header` 函数来打印库版本部分的节头
     writer_print_section_header(w, NULL, SECTION_ID_LIBRARY_VERSIONS);
+
+    // 以下的 `SHOW_LIB_VERSION` 宏（未在您给出的内容中定义）用于展示各个库的版本
+    // 展示 `avutil` 库的版本
     SHOW_LIB_VERSION(avutil,     AVUTIL);
+    // 展示 `avcodec` 库的版本
     SHOW_LIB_VERSION(avcodec,    AVCODEC);
+    // 展示 `avformat` 库的版本
     SHOW_LIB_VERSION(avformat,   AVFORMAT);
+    // 展示 `avdevice` 库的版本
     SHOW_LIB_VERSION(avdevice,   AVDEVICE);
+    // 展示 `avfilter` 库的版本
     SHOW_LIB_VERSION(avfilter,   AVFILTER);
+    // 展示 `swscale` 库的版本
     SHOW_LIB_VERSION(swscale,    SWSCALE);
+    // 展示 `swresample` 库的版本
     SHOW_LIB_VERSION(swresample, SWRESAMPLE);
+    // 展示 `postproc` 库的版本
     SHOW_LIB_VERSION(postproc,   POSTPROC);
+
+    // 调用 `writer_print_section_footer` 函数来打印库版本部分的节尾
     writer_print_section_footer(w);
 }
 
@@ -4127,47 +4452,92 @@ static void ffprobe_show_library_versions(WriterContext *w)
 
 static void ffprobe_show_pixel_formats(WriterContext *w)
 {
+    // 定义一个指向 `AVPixFmtDescriptor` 结构体的指针 `pixdesc` 并初始化为 `NULL`
     const AVPixFmtDescriptor *pixdesc = NULL;
+    // 定义两个整型变量 `i` 和 `n`
     int i, n;
 
+    // 调用函数打印像素格式部分的节头
     writer_print_section_header(w, NULL, SECTION_ID_PIXEL_FORMATS);
+
+    // 只要 `av_pix_fmt_desc_next` 函数返回的 `pixdesc` 不为 `NULL`，即存在下一个像素格式描述符
     while (pixdesc = av_pix_fmt_desc_next(pixdesc)) {
+        // 打印像素格式的节头
         writer_print_section_header(w, NULL, SECTION_ID_PIXEL_FORMAT);
+
+        // 打印像素格式的名称
         print_str("name", pixdesc->name);
+        // 打印像素格式的组件数量
         print_int("nb_components", pixdesc->nb_components);
+
+        // 如果像素格式的组件数量大于等于 3 并且没有 `AV_PIX_FMT_FLAG_RGB` 标志
         if ((pixdesc->nb_components >= 3) && !(pixdesc->flags & AV_PIX_FMT_FLAG_RGB)) {
-            print_int    ("log2_chroma_w", pixdesc->log2_chroma_w);
-            print_int    ("log2_chroma_h", pixdesc->log2_chroma_h);
+            // 打印水平方向的色度抽样对数
+            print_int("log2_chroma_w", pixdesc->log2_chroma_w);
+            // 打印垂直方向的色度抽样对数
+            print_int("log2_chroma_h", pixdesc->log2_chroma_h);
         } else {
+            // 如果不满足上述条件，打印 "N/A" 替代实际值
             print_str_opt("log2_chroma_w", "N/A");
             print_str_opt("log2_chroma_h", "N/A");
         }
+
+        // 获取每个像素的比特数
         n = av_get_bits_per_pixel(pixdesc);
-        if (n) print_int    ("bits_per_pixel", n);
-        else   print_str_opt("bits_per_pixel", "N/A");
+        // 如果比特数存在（不为 0）
+        if (n) 
+            // 打印每个像素的比特数
+            print_int("bits_per_pixel", n);
+        else 
+            // 如果比特数不存在，打印 "N/A" 替代实际值
+            print_str_opt("bits_per_pixel", "N/A");
+
+        // 如果需要显示像素格式标志
         if (do_show_pixel_format_flags) {
+            // 打印像素格式标志部分的节头
             writer_print_section_header(w, NULL, SECTION_ID_PIXEL_FORMAT_FLAGS);
-            PRINT_PIX_FMT_FLAG(BE,        "big_endian");
-            PRINT_PIX_FMT_FLAG(PAL,       "palette");
+
+            // 以下是打印各种像素格式标志的相关代码
+            PRINT_PIX_FMT_FLAG(BE, "big_endian");
+            PRINT_PIX_FMT_FLAG(PAL, "palette");
             PRINT_PIX_FMT_FLAG(BITSTREAM, "bitstream");
-            PRINT_PIX_FMT_FLAG(HWACCEL,   "hwaccel");
-            PRINT_PIX_FMT_FLAG(PLANAR,    "planar");
-            PRINT_PIX_FMT_FLAG(RGB,       "rgb");
-            PRINT_PIX_FMT_FLAG(ALPHA,     "alpha");
+            PRINT_PIX_FMT_FLAG(HWACCEL, "hwaccel");
+            PRINT_PIX_FMT_FLAG(PLANAR, "planar");
+            PRINT_PIX_FMT_FLAG(RGB, "rgb");
+            PRINT_PIX_FMT_FLAG(ALPHA, "alpha");
+
+            // 打印像素格式标志部分的节尾
             writer_print_section_footer(w);
         }
+
+        // 如果需要显示像素格式组件并且组件数量大于 0
         if (do_show_pixel_format_components && (pixdesc->nb_components > 0)) {
+            // 打印像素格式组件部分的节头
             writer_print_section_header(w, NULL, SECTION_ID_PIXEL_FORMAT_COMPONENTS);
+
+            // 遍历像素格式的组件
             for (i = 0; i < pixdesc->nb_components; i++) {
+                // 打印像素格式组件的节头
                 writer_print_section_header(w, NULL, SECTION_ID_PIXEL_FORMAT_COMPONENT);
+
+                // 打印组件的索引
                 print_int("index", i + 1);
+                // 打印组件的位深度
                 print_int("bit_depth", pixdesc->comp[i].depth);
+
+                // 打印像素格式组件的节尾
                 writer_print_section_footer(w);
             }
+
+            // 打印像素格式组件部分的节尾
             writer_print_section_footer(w);
         }
+
+        // 打印像素格式的节尾
         writer_print_section_footer(w);
     }
+
+    // 打印像素格式部分的节尾
     writer_print_section_footer(w);
 }
 
@@ -4281,21 +4651,20 @@ static int opt_show_entries(void *optctx, const char *opt, const char *arg)
     return ret;
 }
 
-static int opt_input_file(void *optctx, const char *arg)
+static int opt_input_file(void *optctx, const char *arg)  // 定义一个静态函数 opt_input_file，返回整数，接受两个参数：一个通用指针 optctx 和一个指向输入文件名的字符指针 arg
 {
-    if (input_filename) {
-        av_log(NULL, AV_LOG_ERROR,
+    if (input_filename) {  // 如果已经有输入文件名被设置
+        av_log(NULL, AV_LOG_ERROR,  // 记录错误日志
                 "Argument '%s' provided as input filename, but '%s' was already specified.\n",
-                arg, input_filename);
-        return AVERROR(EINVAL);
+                arg, input_filename);  // 指出新提供的文件名与已有的冲突
+        return AVERROR(EINVAL);  // 返回错误码，表示输入无效
     }
-    if (!strcmp(arg, "-"))
-        arg = "fd:";
-    input_filename = av_strdup(arg);
-    if (!input_filename)
-        return AVERROR(ENOMEM);
-
-    return 0;
+    if (!strcmp(arg, "-"))  // 如果输入的文件名是 "-"
+        arg = "fd:";  // 将其替换为 "fd:"
+    input_filename = av_strdup(arg);  // 复制输入的文件名
+    if (!input_filename)  // 如果复制失败（内存不足）
+        return AVERROR(ENOMEM);  // 返回内存不足的错误码
+    return 0;  // 成功处理，返回 0
 }
 
 static int opt_input_file_i(void *optctx, const char *opt, const char *arg)
@@ -4545,55 +4914,50 @@ DEFINE_OPT_SHOW_SECTION(streams,          STREAMS)
 DEFINE_OPT_SHOW_SECTION(programs,         PROGRAMS)
 DEFINE_OPT_SHOW_SECTION(stream_groups,    STREAM_GROUPS)
 
-static const OptionDef real_options[] = {
-    CMDUTILS_COMMON_OPTIONS
-    { "f",                     OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_format}, "force format", "format" },
-    { "unit",                  OPT_TYPE_BOOL,        0, {&show_value_unit}, "show unit of the displayed values" },
-    { "prefix",                OPT_TYPE_BOOL,        0, {&use_value_prefix}, "use SI prefixes for the displayed values" },
-    { "byte_binary_prefix",    OPT_TYPE_BOOL,        0, {&use_byte_value_binary_prefix},
-      "use binary prefixes for byte units" },
-    { "sexagesimal",           OPT_TYPE_BOOL,        0, {&use_value_sexagesimal_format},
-      "use sexagesimal format HOURS:MM:SS.MICROSECONDS for time units" },
-    { "pretty",                OPT_TYPE_FUNC,        0, {.func_arg = opt_pretty},
-      "prettify the format of displayed values, make it more human readable" },
-    { "output_format",         OPT_TYPE_STRING,      0, { &output_format },
-      "set the output printing format (available formats are: default, compact, csv, flat, ini, json, xml)", "format" },
-    { "print_format",          OPT_TYPE_STRING,      0, { &output_format }, "alias for -output_format (deprecated)" },
-    { "of",                    OPT_TYPE_STRING,      0, { &output_format }, "alias for -output_format", "format" },
-    { "select_streams",        OPT_TYPE_STRING,      0, { &stream_specifier }, "select the specified streams", "stream_specifier" },
-    { "sections",              OPT_TYPE_FUNC, OPT_EXIT, {.func_arg = opt_sections}, "print sections structure and section information, and exit" },
-    { "show_data",             OPT_TYPE_BOOL,        0, { &do_show_data }, "show packets data" },
-    { "show_data_hash",        OPT_TYPE_STRING,      0, { &show_data_hash }, "show packets data hash" },
-    { "show_error",            OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_error },  "show probing error" },
-    { "show_format",           OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_format }, "show format/container info" },
-    { "show_frames",           OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_frames }, "show frames info" },
-    { "show_entries",          OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_show_entries},
-      "show a set of specified entries", "entry_list" },
-#if HAVE_THREADS
-    { "show_log",              OPT_TYPE_INT,         0, { &do_show_log }, "show log" },
+static const OptionDef real_options[] = {  // 定义一个名为 real_options 的静态常量 OptionDef 类型的数组
+    CMDUTILS_COMMON_OPTIONS  // 可能是一些常见的选项定义
+
+    { "f",                     OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_format}, "force format", "format" },  // 选项 "f"，类型为函数，带有函数参数，相关函数为 opt_format，描述为"force format"，别名"format"
+    { "unit",                  OPT_TYPE_BOOL,        0, {&show_value_unit}, "show unit of the displayed values" },  // 选项 "unit"，布尔类型，相关操作指向 show_value_unit，描述为"show unit of the displayed values"
+    { "prefix",                OPT_TYPE_BOOL,        0, {&use_value_prefix}, "use SI prefixes for the displayed values" },  // 选项 "prefix"，布尔类型，相关操作指向 use_value_prefix，描述为"use SI prefixes for the displayed values"
+    { "byte_binary_prefix",    OPT_TYPE_BOOL,        0, {&use_byte_value_binary_prefix}, "use binary prefixes for byte units" },  // 选项 "byte_binary_prefix"，布尔类型，相关操作指向 use_byte_value_binary_prefix，描述为"use binary prefixes for byte units"
+    { "sexagesimal",           OPT_TYPE_BOOL,        0, {&use_value_sexagesimal_format}, "use sexagesimal format HOURS:MM:SS.MICROSECONDS for time units" },  // 选项 "sexagesimal"，布尔类型，相关操作指向 use_value_sexagesimal_format，描述为"use sexagesimal format HOURS:MM:SS.MICROSECONDS for time units"
+    { "pretty",                OPT_TYPE_FUNC,        0, {.func_arg = opt_pretty}, "prettify the format of displayed values, make it more human readable" },  // 选项 "pretty"，函数类型，相关函数为 opt_pretty，描述为"prettify the format of displayed values, make it more human readable"
+    { "output_format",         OPT_TYPE_STRING,      0, { &output_format }, "set the output printing format (available formats are: default, compact, csv, flat, ini, json, xml)", "format" },  // 选项 "output_format"，字符串类型，相关操作指向 output_format，描述为"set the output printing format (available formats are: default, compact, csv, flat, ini, json, xml)"，别名"format"
+    { "print_format",          OPT_TYPE_STRING,      0, { &output_format }, "alias for -output_format (deprecated)" },  // 选项 "print_format"，字符串类型，相关操作指向 output_format，描述为"alias for -output_format (deprecated)"
+    { "of",                    OPT_TYPE_STRING,      0, { &output_format }, "alias for -output_format", "format" },  // 选项 "of"，字符串类型，相关操作指向 output_format，描述为"alias for -output_format"，别名"format"
+    { "select_streams",        OPT_TYPE_STRING,      0, { &stream_specifier }, "select the specified streams", "stream_specifier" },  // 选项 "select_streams"，字符串类型，相关操作指向 stream_specifier，描述为"select the specified streams"，别名"stream_specifier"
+    { "sections",              OPT_TYPE_FUNC, OPT_EXIT, {.func_arg = opt_sections}, "print sections structure and section information, and exit" },  // 选项 "sections"，函数类型，带有退出标志，相关函数为 opt_sections，描述为"print sections structure and section information, and exit"
+    { "show_data",             OPT_TYPE_BOOL,        0, { &do_show_data }, "show packets data" },  // 选项 "show_data"，布尔类型，相关操作指向 do_show_data，描述为"show packets data"
+    { "show_data_hash",        OPT_TYPE_STRING,      0, { &show_data_hash }, "show packets data hash" },  // 选项 "show_data_hash"，字符串类型，相关操作指向 show_data_hash，描述为"show packets data hash"
+    { "show_error",            OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_error },  "show probing error" },  // 选项 "show_error"，函数类型，相关函数为 opt_show_error，描述为"show probing error"
+    { "show_format",           OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_format }, "show format/container info" },  // 选项 "show_format"，函数类型，相关函数为 opt_show_format，描述为"show format/container info"
+    { "show_frames",           OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_frames }, "show frames info" },  // 选项 "show_frames"，函数类型，相关函数为 opt_show_frames，描述为"show frames info"
+    { "show_entries",          OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_show_entries}, "show a set of specified entries", "entry_list" },  // 选项 "show_entries"，函数类型，带有函数参数，相关函数为 opt_show_entries，描述为"show a set of specified entries"，别名"entry_list"
+#if HAVE_THREADS  // 如果定义了 HAVE_THREADS
+    { "show_log",              OPT_TYPE_INT,         0, { &do_show_log }, "show log" },  // 选项 "show_log"，整数类型，相关操作指向 do_show_log，描述为"show log"
 #endif
-    { "show_packets",          OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_packets }, "show packets info" },
-    { "show_programs",         OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_programs }, "show programs info" },
-    { "show_stream_groups",    OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_stream_groups }, "show stream groups info" },
-    { "show_streams",          OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_streams }, "show streams info" },
-    { "show_chapters",         OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_chapters }, "show chapters info" },
-    { "count_frames",          OPT_TYPE_BOOL,        0, { &do_count_frames }, "count the number of frames per stream" },
-    { "count_packets",         OPT_TYPE_BOOL,        0, { &do_count_packets }, "count the number of packets per stream" },
-    { "show_program_version",  OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_program_version },  "show ffprobe version" },
-    { "show_library_versions", OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_library_versions }, "show library versions" },
-    { "show_versions",         OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_versions }, "show program and library versions" },
-    { "show_pixel_formats",    OPT_TYPE_FUNC,        0, { .func_arg = &opt_show_pixel_formats }, "show pixel format descriptions" },
-    { "show_optional_fields",  OPT_TYPE_FUNC, OPT_FUNC_ARG, { .func_arg = &opt_show_optional_fields }, "show optional fields" },
-    { "show_private_data",     OPT_TYPE_BOOL,        0, { &show_private_data }, "show private data" },
-    { "private",               OPT_TYPE_BOOL,        0, { &show_private_data }, "same as show_private_data" },
-    { "bitexact",              OPT_TYPE_BOOL,        0, {&do_bitexact}, "force bitexact output" },
-    { "read_intervals",        OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_read_intervals}, "set read intervals", "read_intervals" },
-    { "i",                     OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_input_file_i}, "read specified file", "input_file"},
-    { "o",                     OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_output_file_o}, "write to specified output", "output_file"},
-    { "print_filename",        OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_print_filename}, "override the printed input filename", "print_file"},
-    { "find_stream_info",      OPT_TYPE_BOOL, OPT_INPUT | OPT_EXPERT, { &find_stream_info },
-        "read and decode the streams to fill missing information with heuristics" },
-    { NULL, },
+    { "show_packets",          OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_packets }, "show packets info" },  // 选项 "show_packets"，函数类型，相关函数为 opt_show_packets，描述为"show packets info"
+    { "show_programs",         OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_programs }, "show programs info" },  // 选项 "show_programs"，函数类型，相关函数为 opt_show_programs，描述为"show programs info"
+    { "show_stream_groups",    OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_stream_groups }, "show stream groups info" },  // 选项 "show_stream_groups"，函数类型，相关函数为 opt_show_stream_groups，描述为"show stream groups info"
+    { "show_streams",          OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_streams }, "show streams info" },  // 选项 "show_streams"，函数类型，相关函数为 opt_show_streams，描述为"show streams info"
+    { "show_chapters",         OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_chapters }, "show chapters info" },  // 选项 "show_chapters"，函数类型，相关函数为 opt_show_chapters，描述为"show chapters info"
+    { "count_frames",          OPT_TYPE_BOOL,        0, { &do_count_frames }, "count the number of frames per stream" },  // 选项 "count_frames"，布尔类型，相关操作指向 do_count_frames，描述为"count the number of frames per stream"
+    { "count_packets",         OPT_TYPE_BOOL,        0, { &do_count_packets }, "count the number of packets per stream" },  // 选项 "count_packets"，布尔类型，相关操作指向 do_count_packets，描述为"count the number of packets per stream"
+    { "show_program_version",  OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_program_version },  "show ffprobe version" },  // 选项 "show_program_version"，函数类型，相关函数为 opt_show_program_version，描述为"show ffprobe version"
+    { "show_library_versions", OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_library_versions }, "show library versions" },  // 选项 "show_library_versions"，函数类型，相关函数为 opt_show_library_versions，描述为"show library versions"
+    { "show_versions",         OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_versions }, "show program and library versions" },  // 选项 "show_versions"，函数类型，相关函数为 opt_show_versions，描述为"show program and library versions"
+    { "show_pixel_formats",    OPT_TYPE_FUNC,        0, {.func_arg = &opt_show_pixel_formats }, "show pixel format descriptions" },  // 选项 "show_pixel_formats"，函数类型，相关函数为 opt_show_pixel_formats，描述为"show pixel format descriptions"
+    { "show_optional_fields",  OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = &opt_show_optional_fields }, "show optional fields" },  // 选项 "show_optional_fields"，函数类型，带有函数参数，相关函数为 opt_show_optional_fields，描述为"show optional fields"
+    { "show_private_data",     OPT_TYPE_BOOL,        0, { &show_private_data }, "show private data" },  // 选项 "show_private_data"，布尔类型，相关操作指向 show_private_data，描述为"show private data"
+    { "private",               OPT_TYPE_BOOL,        0, { &show_private_data }, "same as show_private_data" },  // 选项 "private"，布尔类型，相关操作指向 show_private_data，描述为"same as show_private_data"
+    { "bitexact",              OPT_TYPE_BOOL,        0, {&do_bitexact}, "force bitexact output" },  // 选项 "bitexact"，布尔类型，相关操作指向 do_bitexact，描述为"force bitexact output"
+    { "read_intervals",        OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_read_intervals}, "set read intervals", "read_intervals" },  // 选项 "read_intervals"，函数类型，带有函数参数，相关函数为 opt_read_intervals，描述为"set read intervals"，别名"read_intervals"
+    { "i",                     OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_input_file_i}, "read specified file", "input_file"},  // 选项 "i"，函数类型，带有函数参数，相关函数为 opt_input_file_i，描述为"read specified file"，别名"input_file"
+    { "o",                     OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_output_file_o}, "write to specified output", "output_file"},  // 选项 "o"，函数类型，带有函数参数，相关函数为 opt_output_file_o，描述为"write to specified output"，别名"output_file"
+    { "print_filename",        OPT_TYPE_FUNC, OPT_FUNC_ARG, {.func_arg = opt_print_filename}, "override the printed input filename", "print_file"},  // 选项 "print_filename"，函数类型，带有函数参数，相关函数为 opt_print_filename，描述为"override the printed input filename"，别名"print_file"
+    { "find_stream_info",      OPT_TYPE_BOOL, OPT_INPUT | OPT_EXPERT, { &find_stream_info }, "read and decode the streams to fill missing information with heuristics" },  // 选项 "find_stream_info"，布尔类型，带有输入和专家标志，相关操作指向 find_stream_info，描述为"read and decode the streams to fill missing information with heuristics"
+    { NULL, },  // 结束标志
 };
 
 static inline int check_section_show_entries(int section_id)
@@ -4614,41 +4978,43 @@ static inline int check_section_show_entries(int section_id)
 
 int main(int argc, char **argv)
 {
-    const Writer *w;
-    WriterContext *wctx;
-    char *buf;
-    char *w_name = NULL, *w_args = NULL;
-    int ret, input_ret, i;
+    const Writer *w;  // 声明一个指向常量 Writer 类型的指针 w
+    WriterContext *wctx;  // 声明一个指向 WriterContext 类型的指针 wctx
+    char *buf;  // 声明一个字符指针 buf
+    char *w_name = NULL, *w_args = NULL;  // 声明两个字符指针 w_name 和 w_args，并初始化为 NULL
+    int ret, input_ret, i;  // 声明三个整型变量 ret、input_ret 和 i
 
-    init_dynload();
+    init_dynload();  // 调用 init_dynload 函数进行动态加载的初始化
 
-#if HAVE_THREADS
-    ret = pthread_mutex_init(&log_mutex, NULL);
-    if (ret != 0) {
-        goto end;
+#if HAVE_THREADS  // 如果定义了 HAVE_THREADS
+    ret = pthread_mutex_init(&log_mutex, NULL);  // 初始化一个线程互斥锁
+    if (ret != 0) {  // 如果初始化失败
+        goto end;  // 跳转到 end 标签处
     }
 #endif
-    av_log_set_flags(AV_LOG_SKIP_REPEATED);
+    av_log_set_flags(AV_LOG_SKIP_REPEATED);  // 设置日志的标志
 
-    options = real_options;
-    parse_loglevel(argc, argv, options);
-    avformat_network_init();
+    options = real_options;  // 将 real_options 赋值给 options
+    parse_loglevel(argc, argv, options);  // 解析命令行参数中的日志级别
+    avformat_network_init();  // 初始化网络相关的格式
+
 #if CONFIG_AVDEVICE
-    avdevice_register_all();
+    avdevice_register_all();  // 如果定义了 CONFIG_AVDEVICE，注册所有的设备
 #endif
 
-    show_banner(argc, argv, options);
-    ret = parse_options(NULL, argc, argv, options, opt_input_file);
-    if (ret < 0) {
-        ret = (ret == AVERROR_EXIT) ? 0 : ret;
-        goto end;
+    show_banner(argc, argv, options);  // 显示横幅信息
+
+    ret = parse_options(NULL, argc, argv, options, opt_input_file);  // 解析其他选项
+    if (ret < 0) {  // 如果解析结果为负
+        ret = (ret == AVERROR_EXIT)? 0 : ret;  // 根据条件进行赋值
+        goto end;  // 跳转到 end 标签处
     }
 
-    if (do_show_log)
-        av_log_set_callback(log_callback);
+    if (do_show_log)  // 如果设置了显示日志的标志
+        av_log_set_callback(log_callback);  // 设置日志回调函数
 
     /* mark things to show, based on -show_entries */
-    SET_DO_SHOW(CHAPTERS, chapters);
+    SET_DO_SHOW(CHAPTERS, chapters);  // 基于某些条件设置显示标志
     SET_DO_SHOW(ERROR, error);
     SET_DO_SHOW(FORMAT, format);
     SET_DO_SHOW(FRAMES, frames);
@@ -4677,107 +5043,107 @@ int main(int argc, char **argv)
     SET_DO_SHOW(STREAM_GROUP_STREAM_TAGS, stream_tags);
     SET_DO_SHOW(PACKET_TAGS, packet_tags);
 
-    if (do_bitexact && (do_show_program_version || do_show_library_versions)) {
+    if (do_bitexact && (do_show_program_version || do_show_library_versions)) {  // 如果某些条件同时满足
         av_log(NULL, AV_LOG_ERROR,
                "-bitexact and -show_program_version or -show_library_versions "
-               "options are incompatible\n");
-        ret = AVERROR(EINVAL);
-        goto end;
+               "options are incompatible\n");  // 输出错误日志
+        ret = AVERROR(EINVAL);  // 设置错误码
+        goto end;  // 跳转到 end 标签处
     }
 
-    writer_register_all();
+    writer_register_all();  // 注册所有的写入器
 
-    if (!output_format)
-        output_format = av_strdup("default");
-    if (!output_format) {
-        ret = AVERROR(ENOMEM);
-        goto end;
+    if (!output_format)  // 如果 output_format 为空
+        output_format = av_strdup("default");  // 复制一个默认字符串给它
+    if (!output_format) {  // 如果复制操作失败
+        ret = AVERROR(ENOMEM);  // 设置内存不足的错误码
+        goto end;  // 跳转到 end 标签处
     }
-    w_name = av_strtok(output_format, "=", &buf);
-    if (!w_name) {
+    w_name = av_strtok(output_format, "=", &buf);  // 对 output_format 进行分割，获取名称部分
+    if (!w_name) {  // 如果名称为空
         av_log(NULL, AV_LOG_ERROR,
-               "No name specified for the output format\n");
-        ret = AVERROR(EINVAL);
-        goto end;
+               "No name specified for the output format\n");  // 输出错误日志
+        ret = AVERROR(EINVAL);  // 设置错误码
+        goto end;  // 跳转到 end 标签处
     }
-    w_args = buf;
+    w_args = buf;  // 将分割后的剩余部分作为参数
 
-    if (show_data_hash) {
-        if ((ret = av_hash_alloc(&hash, show_data_hash)) < 0) {
-            if (ret == AVERROR(EINVAL)) {
-                const char *n;
+    if (show_data_hash) {  // 如果设置了显示数据哈希
+        if ((ret = av_hash_alloc(&hash, show_data_hash)) < 0) {  // 分配哈希资源
+            if (ret == AVERROR(EINVAL)) {  // 如果是无效参数错误
+                const char *n;  // 声明一个常量字符指针
                 av_log(NULL, AV_LOG_ERROR,
                        "Unknown hash algorithm '%s'\nKnown algorithms:",
-                       show_data_hash);
-                for (i = 0; (n = av_hash_names(i)); i++)
-                    av_log(NULL, AV_LOG_ERROR, " %s", n);
-                av_log(NULL, AV_LOG_ERROR, "\n");
+                       show_data_hash);  // 输出错误日志
+                for (i = 0; (n = av_hash_names(i)); i++)  // 遍历已知的哈希算法名称
+                    av_log(NULL, AV_LOG_ERROR, " %s", n);  // 输出名称
+                av_log(NULL, AV_LOG_ERROR, "\n");  // 输出换行
             }
-            goto end;
+            goto end;  // 跳转到 end 标签处
         }
     }
 
-    w = writer_get_by_name(w_name);
-    if (!w) {
-        av_log(NULL, AV_LOG_ERROR, "Unknown output format with name '%s'\n", w_name);
-        ret = AVERROR(EINVAL);
-        goto end;
+    w = writer_get_by_name(w_name);  // 根据名称获取写入器
+    if (!w) {  // 如果未获取到
+        av_log(NULL, AV_LOG_ERROR, "Unknown output format with name '%s'\n", w_name);  // 输出错误日志
+        ret = AVERROR(EINVAL);  // 设置错误码
+        goto end;  // 跳转到 end 标签处
     }
 
     if ((ret = writer_open(&wctx, w, w_args,
-                           sections, FF_ARRAY_ELEMS(sections), output_filename)) >= 0) {
-        if (w == &xml_writer)
-            wctx->string_validation_utf8_flags |= AV_UTF8_FLAG_EXCLUDE_XML_INVALID_CONTROL_CODES;
+                           sections, FF_ARRAY_ELEMS(sections), output_filename)) >= 0) {  // 打开写入器上下文
+        if (w == &xml_writer)  // 如果是特定的写入器
+            wctx->string_validation_utf8_flags |= AV_UTF8_FLAG_EXCLUDE_XML_INVALID_CONTROL_CODES;  // 设置相应的标志
 
-        writer_print_section_header(wctx, NULL, SECTION_ID_ROOT);
+        writer_print_section_header(wctx, NULL, SECTION_ID_ROOT);  // 打印节头
 
-        if (do_show_program_version)
-            ffprobe_show_program_version(wctx);
-        if (do_show_library_versions)
-            ffprobe_show_library_versions(wctx);
-        if (do_show_pixel_formats)
-            ffprobe_show_pixel_formats(wctx);
+        if (do_show_program_version)  // 如果设置了显示程序版本
+            ffprobe_show_program_version(wctx);  // 显示程序版本
+        if (do_show_library_versions)  // 如果设置了显示库版本
+            ffprobe_show_library_versions(wctx);  // 显示库版本
+        if (do_show_pixel_formats)  // 如果设置了显示像素格式
+            ffprobe_show_pixel_formats(wctx);  // 显示像素格式
 
         if (!input_filename &&
             ((do_show_format || do_show_programs || do_show_stream_groups || do_show_streams || do_show_chapters || do_show_packets || do_show_error) ||
-             (!do_show_program_version && !do_show_library_versions && !do_show_pixel_formats))) {
-            show_usage();
-            av_log(NULL, AV_LOG_ERROR, "You have to specify one input file.\n");
-            av_log(NULL, AV_LOG_ERROR, "Use -h to get full help or, even better, run 'man %s'.\n", program_name);
-            ret = AVERROR(EINVAL);
-        } else if (input_filename) {
-            ret = probe_file(wctx, input_filename, print_input_filename);
-            if (ret < 0 && do_show_error)
-                show_error(wctx, ret);
+             (!do_show_program_version &&!do_show_library_versions &&!do_show_pixel_formats))) {  // 如果没有输入文件名且满足某些条件
+            show_usage();  // 显示使用信息
+            av_log(NULL, AV_LOG_ERROR, "You have to specify one input file.\n");  // 输出错误日志
+            av_log(NULL, AV_LOG_ERROR, "Use -h to get full help or, even better, run 'an %s'.\n", program_name);  // 输出帮助信息
+            ret = AVERROR(EINVAL);  // 设置错误码
+        } else if (input_filename) {  // 如果有输入文件名
+            ret = probe_file(wctx, input_filename, print_input_filename);  // 探测文件
+            if (ret < 0 && do_show_error)  // 如果探测失败且设置了显示错误
+                show_error(wctx, ret);  // 显示错误
         }
 
-        input_ret = ret;
+        input_ret = ret;  // 保存探测文件的返回值
 
-        writer_print_section_footer(wctx);
-        ret = writer_close(&wctx);
-        if (ret < 0)
-            av_log(NULL, AV_LOG_ERROR, "Writing output failed: %s\n", av_err2str(ret));
+        writer_print_section_footer(wctx);  // 打印节尾
+        ret = writer_close(&wctx);  // 关闭写入器上下文
+        if (ret < 0)  // 如果关闭失败
+            av_log(NULL, AV_LOG_ERROR, "Writing output failed: %s\n", av_err2str(ret));  // 输出错误日志
 
-        ret = FFMIN(ret, input_ret);
+        ret = FFMIN(ret, input_ret);  // 取两个返回值中的较小值
     }
 
-end:
-    av_freep(&output_format);
-    av_freep(&output_filename);
-    av_freep(&input_filename);
-    av_freep(&print_input_filename);
-    av_freep(&read_intervals);
-    av_hash_freep(&hash);
+end:  // 标签 end
+    av_freep(&output_format);  // 释放 output_format 占用的内存
+    av_freep(&output_filename);  // 释放 output_filename 占用的内存
+    av_freep(&input_filename);  // 释放 input_filename 占用的内存
+    av_freep(&print_input_filename);  // 释放 print_input_filename 占用的内存
+    av_freep(&read_intervals);  // 释放 read_intervals 占用的内存
+    av_hash_freep(&hash);  // 释放哈希资源
 
-    uninit_opts();
-    for (i = 0; i < FF_ARRAY_ELEMS(sections); i++)
-        av_dict_free(&(sections[i].entries_to_show));
+    uninit_opts();  // 取消初始化选项
+    for (i = 0; i < FF_ARRAY_ELEMS(sections); i++)  // 遍历 sections 数组
+        av_dict_free(&(sections[i].entries_to_show));  // 释放字典资源
 
-    avformat_network_deinit();
+    avformat_network_deinit();  // 取消网络相关的初始化
 
 #if HAVE_THREADS
-    pthread_mutex_destroy(&log_mutex);
+    pthread_mutex_destroy(&log_mutex);  // 如果定义了 HAVE_THREADS，销毁线程互斥锁
 #endif
 
-    return ret < 0;
+    return ret < 0;  // 根据 ret 的值返回 0 或非 0
 }

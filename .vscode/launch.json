@@ -1,0 +1,79 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [  
+      {
+        "name": "ffmpeg",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/ffmpeg_g",
+        "args": ["-i", "input.mp4", "-c copy", "output.mp4"],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "externalConsole": false,
+        "linux": {
+          "MIMode": "gdb",
+          "miDebuggerPath": "/usr/bin/gdb"
+        },
+        "osx": {
+          "MIMode": "lldb"
+        },
+        "windows": {
+          "MIMode": "gdb",
+          "miDebuggerPath": "C:\\MinGw\\bin\\gdb.exe"
+        },
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for lldb",
+            "text": "settings set target.inline-breakpoint-strategy always",
+            "ignoreFailures": true
+          }
+        ],
+        "preLaunchTask": "C/C++: g++ build active file",
+        "logging": {
+          "engineLogging": true,
+          "moduleLoad": false,
+          "trace": true
+        }
+      },
+      {
+        "name": "ffprobe",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/ffprobe_g",
+        "args": ["-i", "input.mp4"],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "externalConsole": false,
+        "linux": {
+          "MIMode": "gdb",
+          "miDebuggerPath": "/usr/bin/gdb"
+        },
+        "osx": {
+          "MIMode": "lldb"
+        },
+        "windows": {
+          "MIMode": "gdb",
+          "miDebuggerPath": "C:\\MinGw\\bin\\gdb.exe"
+        },
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for lldb",
+            "text": "settings set target.inline-breakpoint-strategy always",
+            "ignoreFailures": true
+          }
+        ],
+        "preLaunchTask": "C/C++: g++ build active file",
+        "logging": {
+          "engineLogging": true,
+          "moduleLoad": false,
+          "trace": true
+        }
+      }
+    ]
+  }
+  

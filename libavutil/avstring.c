@@ -33,15 +33,15 @@
 #include "error.h"
 #include "macros.h"
 
-int av_strstart(const char *str, const char *pfx, const char **ptr)
+int av_strstart(const char *str, const char *pfx, const char **ptr)  // 定义一个名为 av_strstart 的函数，返回整数，接受两个字符指针 str 和 pfx，以及一个指向字符指针的指针 ptr
 {
-    while (*pfx && *pfx == *str) {
-        pfx++;
-        str++;
+    while (*pfx && *pfx == *str) {  // 当 pfx 指向的字符不为空并且与 str 指向的字符相同时
+        pfx++;  // 移动 pfx 指针向前一位
+        str++;  // 移动 str 指针向前一位
     }
-    if (!*pfx && ptr)
-        *ptr = str;
-    return !*pfx;
+    if (!*pfx && ptr)  // 如果 pfx 已经到达末尾并且 ptr 不为空
+        *ptr = str;  // 将 ptr 指向 str 当前的位置
+    return !*pfx;  // 返回 pfx 是否已经到达末尾（如果到达末尾返回 1，否则返回 0）
 }
 
 int av_stristart(const char *str, const char *pfx, const char **ptr)
@@ -175,33 +175,34 @@ char *av_get_token(const char **buf, const char *term)
     return ret;
 }
 
-char *av_strtok(char *s, const char *delim, char **saveptr)
+char *av_strtok(char *s, const char *delim, char **saveptr)  // 定义一个函数 av_strtok，接受三个参数：字符指针 s、常量字符指针 delim 和字符指针的指针 saveptr
 {
-    char *tok;
+    char *tok;  // 定义一个字符指针 tok
 
-    if (!s && !(s = *saveptr))
-        return NULL;
+    if (!s && !(s = *saveptr))  // 如果 s 为空且 *saveptr 也为空
+        return NULL;  // 返回空指针，表示没有可分割的字符串
 
     /* skip leading delimiters */
-    s += strspn(s, delim);
+    s += strspn(s, delim);  // 将 s 指针向前移动，跳过开头的分隔符
 
     /* s now points to the first non delimiter char, or to the end of the string */
-    if (!*s) {
-        *saveptr = NULL;
-        return NULL;
+    if (!*s) {  // 如果 s 指向的字符为空
+        *saveptr = NULL;  // 将 saveptr 置为空
+        return NULL;  // 返回空指针，表示字符串全是分隔符
     }
-    tok = s++;
+    tok = s++;  // 将 tok 指向 s 的当前位置，并将 s 向前移动一个字符
 
     /* skip non delimiters */
-    s += strcspn(s, delim);
-    if (*s) {
-        *s = 0;
-        *saveptr = s+1;
-    } else {
-        *saveptr = NULL;
+    s += strcspn(s, delim);  // 将 s 指针向前移动，跳过非分隔符的字符
+
+    if (*s) {  // 如果 s 指向的字符不为空
+        *s = 0;  // 将当前字符置为 0（字符串结束符）
+        *saveptr = s + 1;  // 更新 saveptr 为下一次分割的起始位置
+    } else {  // 如果 s 已经指向字符串末尾
+        *saveptr = NULL;  // 将 saveptr 置为空
     }
 
-    return tok;
+    return tok;  // 返回分割得到的子字符串
 }
 
 int av_strcasecmp(const char *a, const char *b)

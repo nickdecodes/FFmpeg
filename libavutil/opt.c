@@ -1651,90 +1651,90 @@ int av_opt_show2(void *obj, void *av_log_obj, int req_flags, int rej_flags)
     return 0;
 }
 
-void av_opt_set_defaults(void *s)
+void av_opt_set_defaults(void *s) 
 {
-    av_opt_set_defaults2(s, 0, 0);
+    av_opt_set_defaults2(s, 0, 0);  // 调用另一个函数 av_opt_set_defaults2，并将指针 s 以及两个 0 作为参数传递给它
 }
 
-void av_opt_set_defaults2(void *s, int mask, int flags)
+void av_opt_set_defaults2(void *s, int mask, int flags)  // 定义一个函数 av_opt_set_defaults2，接受一个通用指针 s、两个整数 mask 和 flags
 {
-    const AVOption *opt = NULL;
-    while ((opt = av_opt_next(s, opt))) {
-        void *dst = ((uint8_t*)s) + opt->offset;
+    const AVOption *opt = NULL;  // 定义一个指向 AVOption 的常量指针 opt，并初始化为 NULL
 
-        if ((opt->flags & mask) != flags)
-            continue;
+    while ((opt = av_opt_next(s, opt))) {  // 遍历选项，通过 av_opt_next 函数获取下一个选项
+        void *dst = ((uint8_t*)s) + opt->offset;  // 计算目标地址
 
-        if (opt->flags & AV_OPT_FLAG_READONLY)
-            continue;
+        if ((opt->flags & mask) != flags)  // 如果选项的标志与 mask 按位与的结果不等于 flags
+            continue;  // 跳过本次循环
 
-        if (opt->type & AV_OPT_TYPE_FLAG_ARRAY) {
-            const AVOptionArrayDef *arr = opt->default_val.arr;
-            const char              sep = opt_array_sep(opt);
+        if (opt->flags & AV_OPT_FLAG_READONLY)  // 如果选项是只读的
+            continue;  // 跳过本次循环
 
-            av_assert0(sep && sep != '\\' &&
+        if (opt->type & AV_OPT_TYPE_FLAG_ARRAY) {  // 如果选项类型是数组类型
+            const AVOptionArrayDef *arr = opt->default_val.arr;  // 获取数组定义
+            const char              sep = opt_array_sep(opt);  // 获取分隔符
+
+            av_assert0(sep && sep!= '\\' &&  // 进行一些断言检查
                        (sep < 'a' || sep > 'z') &&
                        (sep < 'A' || sep > 'Z') &&
                        (sep < '0' || sep > '9'));
 
-            if (arr && arr->def)
-                opt_set_array(s, s, opt, arr->def, dst);
+            if (arr && arr->def)  // 如果数组定义和默认值存在
+                opt_set_array(s, s, opt, arr->def, dst);  // 设置数组
 
-            continue;
+            continue;  // 继续下一次循环
         }
 
-        switch (opt->type) {
-            case AV_OPT_TYPE_CONST:
-                /* Nothing to be done here */
-                break;
-            case AV_OPT_TYPE_BOOL:
-            case AV_OPT_TYPE_FLAGS:
-            case AV_OPT_TYPE_INT:
-            case AV_OPT_TYPE_UINT:
-            case AV_OPT_TYPE_INT64:
-            case AV_OPT_TYPE_UINT64:
-            case AV_OPT_TYPE_DURATION:
-            case AV_OPT_TYPE_PIXEL_FMT:
-            case AV_OPT_TYPE_SAMPLE_FMT:
-                write_number(s, opt, dst, 1, 1, opt->default_val.i64);
-                break;
-            case AV_OPT_TYPE_DOUBLE:
-            case AV_OPT_TYPE_FLOAT: {
-                double val;
-                val = opt->default_val.dbl;
-                write_number(s, opt, dst, val, 1, 1);
+        switch (opt->type) {  // 根据选项的类型进行不同的操作
+            case AV_OPT_TYPE_CONST:  // 如果是常量类型
+                /* Nothing to be done here */  // 无需进行任何操作
+                break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_BOOL:  // 如果是布尔类型
+            case AV_OPT_TYPE_FLAGS:  // 或者标志类型
+            case AV_OPT_TYPE_INT:  // 或者整数类型
+            case AV_OPT_TYPE_UINT:  // 或者无符号整数类型
+            case AV_OPT_TYPE_INT64:  // 或者 64 位整数类型
+            case AV_OPT_TYPE_UINT64:  // 或者 64 位无符号整数类型
+            case AV_OPT_TYPE_DURATION:  // 或者持续时间类型
+            case AV_OPT_TYPE_PIXEL_FMT:  // 或者像素格式类型
+            case AV_OPT_TYPE_SAMPLE_FMT:  // 或者采样格式类型
+                write_number(s, opt, dst, 1, 1, opt->default_val.i64);  // 写入数字
+                break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_DOUBLE:  // 如果是双精度浮点数类型
+            case AV_OPT_TYPE_FLOAT: {  // 或者单精度浮点数类型
+                double val;  // 定义双精度变量
+                val = opt->default_val.dbl;  // 获取默认值
+                write_number(s, opt, dst, val, 1, 1);  // 写入数字
             }
-            break;
-            case AV_OPT_TYPE_RATIONAL: {
-                AVRational val;
-                val = av_d2q(opt->default_val.dbl, INT_MAX);
-                write_number(s, opt, dst, 1, val.den, val.num);
+            break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_RATIONAL: {  // 如果是有理数类型
+                AVRational val;  // 定义有理数变量
+                val = av_d2q(opt->default_val.dbl, INT_MAX);  // 进行转换
+                write_number(s, opt, dst, 1, val.den, val.num);  // 写入数字
             }
-            break;
-            case AV_OPT_TYPE_COLOR:
-                set_string_color(s, opt, opt->default_val.str, dst);
-                break;
-            case AV_OPT_TYPE_STRING:
-                set_string(s, opt, opt->default_val.str, dst);
-                break;
-            case AV_OPT_TYPE_IMAGE_SIZE:
-                set_string_image_size(s, opt, opt->default_val.str, dst);
-                break;
-            case AV_OPT_TYPE_VIDEO_RATE:
-                set_string_video_rate(s, opt, opt->default_val.str, dst);
-                break;
-            case AV_OPT_TYPE_BINARY:
-                set_string_binary(s, opt, opt->default_val.str, dst);
-                break;
-            case AV_OPT_TYPE_CHLAYOUT:
-                set_string_channel_layout(s, opt, opt->default_val.str, dst);
-                break;
-            case AV_OPT_TYPE_DICT:
-                set_string_dict(s, opt, opt->default_val.str, dst);
-                break;
-        default:
-            av_log(s, AV_LOG_DEBUG, "AVOption type %d of option %s not implemented yet\n",
-                   opt->type, opt->name);
+            break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_COLOR:  // 如果是颜色类型
+                set_string_color(s, opt, opt->default_val.str, dst);  // 设置颜色字符串
+                break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_STRING:  // 如果是字符串类型
+                set_string(s, opt, opt->default_val.str, dst);  // 设置字符串
+                break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_IMAGE_SIZE:  // 如果是图像大小类型
+                set_string_image_size(s, opt, opt->default_val.str, dst);  // 设置图像大小字符串
+                break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_VIDEO_RATE:  // 如果是视频帧率类型
+                set_string_video_rate(s, opt, opt->default_val.str, dst);  // 设置视频帧率字符串
+                break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_BINARY:  // 如果是二进制类型
+                set_string_binary(s, opt, opt->default_val.str, dst);  // 设置二进制字符串
+                break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_CHLAYOUT:  // 如果是声道布局类型
+                set_string_channel_layout(s, opt, opt->default_val.str, dst);  // 设置声道布局字符串
+                break;  // 跳出 switch 语句
+            case AV_OPT_TYPE_DICT:  // 如果是字典类型
+                set_string_dict(s, opt, opt->default_val.str, dst);  // 设置字典字符串
+                break;  // 跳出 switch 语句
+        default:  // 如果是其他未处理的类型
+            av_log(s, AV_LOG_DEBUG, "AVOption type %d of option %s not implemented yet\n", opt->type, opt->name);  // 记录调试日志
         }
     }
 }

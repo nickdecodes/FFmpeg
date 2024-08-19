@@ -240,27 +240,27 @@
  * before the file is actually opened.
  */
 
-enum AVOptionType{
-    AV_OPT_TYPE_FLAGS = 1,
-    AV_OPT_TYPE_INT,
-    AV_OPT_TYPE_INT64,
-    AV_OPT_TYPE_DOUBLE,
-    AV_OPT_TYPE_FLOAT,
-    AV_OPT_TYPE_STRING,
-    AV_OPT_TYPE_RATIONAL,
-    AV_OPT_TYPE_BINARY,  ///< offset must point to a pointer immediately followed by an int for the length
-    AV_OPT_TYPE_DICT,
-    AV_OPT_TYPE_UINT64,
-    AV_OPT_TYPE_CONST,
-    AV_OPT_TYPE_IMAGE_SIZE, ///< offset must point to two consecutive ints
-    AV_OPT_TYPE_PIXEL_FMT,
-    AV_OPT_TYPE_SAMPLE_FMT,
-    AV_OPT_TYPE_VIDEO_RATE, ///< offset must point to AVRational
-    AV_OPT_TYPE_DURATION,
-    AV_OPT_TYPE_COLOR,
-    AV_OPT_TYPE_BOOL,
-    AV_OPT_TYPE_CHLAYOUT,
-    AV_OPT_TYPE_UINT,
+enum AVOptionType{  // 定义一个名为 AVOptionType 的枚举类型
+    AV_OPT_TYPE_FLAGS = 1,  // 标志类型，值为 1
+    AV_OPT_TYPE_INT,  // 整数类型
+    AV_OPT_TYPE_INT64,  // 64 位整数类型
+    AV_OPT_TYPE_DOUBLE,  // 双精度浮点数类型
+    AV_OPT_TYPE_FLOAT,  // 单精度浮点数类型
+    AV_OPT_TYPE_STRING,  // 字符串类型
+    AV_OPT_TYPE_RATIONAL,  // 有理数类型
+    AV_OPT_TYPE_BINARY,  ///< 偏移量必须指向一个紧跟一个表示长度的整数的指针
+    AV_OPT_TYPE_DICT,  // 字典类型
+    AV_OPT_TYPE_UINT64,  // 无符号 64 位整数类型
+    AV_OPT_TYPE_CONST,  // 常量类型
+    AV_OPT_TYPE_IMAGE_SIZE,  ///< 偏移量必须指向两个连续的整数
+    AV_OPT_TYPE_PIXEL_FMT,  // 像素格式类型
+    AV_OPT_TYPE_SAMPLE_FMT,  // 采样格式类型
+    AV_OPT_TYPE_VIDEO_RATE,  ///< 偏移量必须指向 AVRational
+    AV_OPT_TYPE_DURATION,  // 持续时间类型
+    AV_OPT_TYPE_COLOR,  // 颜色类型
+    AV_OPT_TYPE_BOOL,  // 布尔类型
+    AV_OPT_TYPE_CHLAYOUT,  // 声道布局类型
+    AV_OPT_TYPE_UINT,  // 无符号整数类型
 
     /**
      * May be combined with another regular option type to declare an array
@@ -271,7 +271,7 @@ enum AVOptionType{
      * followed by an unsigned int that will store the number of elements in the
      * array.
      */
-    AV_OPT_TYPE_FLAG_ARRAY = (1 << 16),
+    AV_OPT_TYPE_FLAG_ARRAY = (1 << 16),  // 标志数组类型，值为 1 左移 16 位
 };
 
 /**
@@ -320,24 +320,25 @@ enum AVOptionType{
 /**
  * May be set as default_val for AV_OPT_TYPE_FLAG_ARRAY options.
  */
-typedef struct AVOptionArrayDef {
+typedef struct AVOptionArrayDef {  // 定义一个名为 AVOptionArrayDef 的结构体，并为其定义了一个新的类型名 AVOptionArrayDef
     /**
      * Native access only.
      *
      * Default value of the option, as would be serialized by av_opt_get() (i.e.
      * using the value of sep as the separator).
      */
-    const char         *def;
+    const char         *def;  // 选项的默认值（字符串形式），如通过 av_opt_get() 序列化时（即使用 sep 的值作为分隔符）
 
     /**
      * Minimum number of elements in the array. When this field is non-zero, def
      * must be non-NULL and contain at least this number of elements.
      */
-    unsigned            size_min;
+    unsigned            size_min;  // 数组中元素的最小数量。当此字段非零时，def 必须非空且至少包含此数量的元素
+
     /**
      * Maximum number of elements in the array, 0 when unlimited.
      */
-    unsigned            size_max;
+    unsigned            size_max;  // 数组中元素的最大数量，为 0 时表示无限制
 
     /**
      * Separator between array elements in string representations of this
@@ -348,20 +349,20 @@ typedef struct AVOptionArrayDef {
      * The separator and the backslash must be backslash-escaped in order to
      * appear in string representations of the option value.
      */
-    char                sep;
-} AVOptionArrayDef;
+    char                sep;  // 此选项的字符串表示中数组元素之间的分隔符。必须是可打印的 ASCII 字符，不包括字母数字和反斜杠。当 sep 为 0 时使用逗号
+} AVOptionArrayDef;  // 结束结构体的定义
 
 /**
  * AVOption
  */
-typedef struct AVOption {
-    const char *name;
+typedef struct AVOption {  // 定义一个名为 AVOption 的结构体，并为其定义了一个新的类型名 AVOption
+    const char *name;  // 选项的名称
 
     /**
      * short English help text
      * @todo What about other languages?
      */
-    const char *help;
+    const char *help;  // 简短的英文帮助文本
 
     /**
      * Native access only.
@@ -369,19 +370,19 @@ typedef struct AVOption {
      * The offset relative to the context structure where the option
      * value is stored. It should be 0 for named constants.
      */
-    int offset;
-    enum AVOptionType type;
+    int offset;  // 相对于上下文结构的偏移量，用于存储选项值，对于命名常量应为 0
+    enum AVOptionType type;  // 选项的类型（枚举类型）
 
     /**
      * Native access only, except when documented otherwise.
      * the default value for scalar options
      */
-    union {
-        int64_t i64;
-        double dbl;
-        const char *str;
+    union {  // 联合体，用于存储不同类型的默认值
+        int64_t i64;  // 64 位整数类型的默认值
+        double dbl;  // 双精度浮点数类型的默认值
+        const char *str;  // 字符串类型的默认值
         /* TODO those are unused now */
-        AVRational q;
+        AVRational q;  // 有理数类型（未使用）
 
         /**
          * Used for AV_OPT_TYPE_FLAG_ARRAY options. May be NULL.
@@ -389,51 +390,54 @@ typedef struct AVOption {
          * Foreign access to some members allowed, as noted in AVOptionArrayDef
          * documentation.
          */
-        const AVOptionArrayDef *arr;
+        const AVOptionArrayDef *arr;  // 用于数组选项，可能为 NULL
     } default_val;
-    double min;                 ///< minimum valid value for the option
-    double max;                 ///< maximum valid value for the option
+    double min;                 ///< 选项的最小值
+    double max;                 ///< 选项的最大值
 
     /**
      * A combination of AV_OPT_FLAG_*.
      */
-    int flags;
+    int flags;  // 标志，是 AV_OPT_FLAG_* 的组合
 
     /**
      * The logical unit to which the option belongs. Non-constant
      * options and corresponding named constants share the same
      * unit. May be NULL.
      */
-    const char *unit;
-} AVOption;
+    const char *unit;  // 选项所属的逻辑单元，可能为 NULL
+} AVOption;  // 结束结构体的定义
 
 /**
  * A single allowed range of values, or a single allowed value.
  */
-typedef struct AVOptionRange {
-    const char *str;
+typedef struct AVOptionRange {  // 定义一个名为 AVOptionRange 的结构体，并为其定义了一个新的类型名 AVOptionRange
+    const char *str;  // 字符串
+
     /**
      * Value range.
      * For string ranges this represents the min/max length.
      * For dimensions this represents the min/max pixel count or width/height in multi-component case.
      */
-    double value_min, value_max;
+    double value_min, value_max;  // 取值范围。对于字符串范围，表示最小/最大长度；对于维度，表示多组件情况下的最小/最大像素数或宽/高
+
     /**
      * Value's component range.
      * For string this represents the unicode range for chars, 0-127 limits to ASCII.
      */
-    double component_min, component_max;
+    double component_min, component_max;  // 值的组件范围。对于字符串，表示字符的 Unicode 范围，0 - 127 限制为 ASCII
+
     /**
      * Range flag.
      * If set to 1 the struct encodes a range, if set to 0 a single value.
      */
-    int is_range;
-} AVOptionRange;
+    int is_range;  // 范围标志。如果设置为 1，结构体表示一个范围；如果设置为 0，表示单个值
+} AVOptionRange;  // 结束结构体的定义
 
 /**
  * List of AVOptionRange structs.
  */
-typedef struct AVOptionRanges {
+typedef struct AVOptionRanges {  // 定义一个名为 AVOptionRanges 的结构体，并为其定义了一个新的类型名 AVOptionRanges
     /**
      * Array of option ranges.
      *
@@ -464,16 +468,18 @@ typedef struct AVOptionRanges {
      * av_opt_freep_ranges(&ranges);
      * @endcode
      */
-    AVOptionRange **range;
+    AVOptionRange **range;  // 选项范围的数组指针
+
     /**
      * Number of ranges per component.
      */
-    int nb_ranges;
+    int nb_ranges;  // 每个组件的范围数量
+
     /**
      * Number of componentes.
      */
-    int nb_components;
-} AVOptionRanges;
+    int nb_components;  // 组件的数量
+} AVOptionRanges;  // 结束结构体的定义
 
 /**
  * @defgroup opt_mng AVOption (un)initialization and inspection.

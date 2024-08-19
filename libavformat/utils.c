@@ -543,16 +543,16 @@ void ff_parse_key_value(const char *str, ff_parse_key_val_cb callback_get_buf,
     }
 }
 
-int avformat_network_init(void)
+int avformat_network_init(void)  // 定义一个名为 avformat_network_init 的函数，返回整数类型，无参数
 {
-#if CONFIG_NETWORK
-    int ret;
-    if ((ret = ff_network_init()) < 0)
-        return ret;
-    if ((ret = ff_tls_init()) < 0)
-        return ret;
-#endif
-    return 0;
+#if CONFIG_NETWORK  // 如果定义了 CONFIG_NETWORK 这个条件
+    int ret;  // 定义一个整数变量 ret
+    if ((ret = ff_network_init()) < 0)  // 调用 ff_network_init 函数，并将返回值赋给 ret，如果 ret 小于 0
+        return ret;  // 直接返回 ret
+    if ((ret = ff_tls_init()) < 0)  // 调用 ff_tls_init 函数，并将返回值赋给 ret，如果 ret 小于 0
+        return ret;  // 直接返回 ret
+#endif  // 结束条件编译块
+    return 0;  // 如果上述条件都不满足，返回 0
 }
 
 int avformat_network_deinit(void)

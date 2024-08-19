@@ -55,10 +55,10 @@
 /**
  * Rational number (pair of numerator and denominator).
  */
-typedef struct AVRational{
-    int num; ///< Numerator
-    int den; ///< Denominator
-} AVRational;
+typedef struct AVRational{  // 定义一个名为 AVRational 的结构体，并为其定义了一个新的类型名 AVRational
+    int num; ///< 分子
+    int den; ///< 分母
+} AVRational;  // 结束结构体的定义
 
 /**
  * Create an AVRational.

@@ -30,6 +30,9 @@
 #include "macros.h"
 #include "mem.h"
 
+// 这段代码声明了一个常量 `int` 类型的变量 `av_aes_size` ，并将其初始化为 `sizeof(AVAES)` 的值。
+// `sizeof` 是一个操作符，用于获取指定类型或变量所占用的字节数。在这种情况下，
+// 它用于获取 `AVAES` 所占用的字节数，并将该值赋给 `av_aes_size` 。 
 const int av_aes_size= sizeof(AVAES);
 
 struct AVAES *av_aes_alloc(void)

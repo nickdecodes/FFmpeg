@@ -588,166 +588,196 @@ time_t av_timegm(struct tm *tm)
 
 int av_parse_time(int64_t *timeval, const char *timestr, int duration)
 {
-    const char *p, *q;
-    int64_t t, now64;
-    time_t now;
-    struct tm dt = { 0 }, tmbuf;
-    int today = 0, negative = 0, microseconds = 0, suffix = 1000000;
-    int i;
+    const char *p, *q;  // 定义两个指针用于遍历输入的时间字符串
+    int64_t t, now64;  // `t`用于存储解析后的时间值，`now64`用于获取当前时间
+    time_t now;  // 用于存储当前时间
+    struct tm dt = { 0 }, tmbuf;  // `dt`用于存储解析后的时间结构，`tmbuf`用于辅助函数
+    int today = 0, negative = 0, microseconds = 0, suffix = 1000000;  // 一些标志和辅助变量
+    int i;  // 循环变量
+
+    // 定义日期格式数组
     static const char * const date_fmt[] = {
         "%Y - %m - %d",
         "%Y%m%d",
     };
+
+    // 定义时间格式数组
     static const char * const time_fmt[] = {
         "%H:%M:%S",
         "%H%M%S",
     };
+
+    // 定义时区格式数组
     static const char * const tz_fmt[] = {
         "%H:%M",
         "%H%M",
         "%H",
     };
 
-    p = timestr;
-    q = NULL;
-    *timeval = INT64_MIN;
+    p = timestr;  // 将输入的时间字符串指针赋值给 `p`
+    q = NULL;  // 初始化 `q`为空
+
+    *timeval = INT64_MIN;  // 将输出的时间值初始化为 `INT64_MIN`
+
+    // 如果不是解析持续时间
     if (!duration) {
-        now64 = av_gettime();
-        now = now64 / 1000000;
+        now64 = av_gettime();  // 获取当前时间
+        now = now64 / 1000000;  // 转换为时间类型
 
+        // 如果输入的时间字符串是 "now"
         if (!av_strcasecmp(timestr, "now")) {
-            *timeval = now64;
-            return 0;
+            *timeval = now64;  // 将当前时间赋值给输出的时间值
+            return 0;  // 表示成功，返回 0
         }
 
-        /* parse the year-month-day part */
+        // 尝试解析年 - 月 - 日部分
         for (i = 0; i < FF_ARRAY_ELEMS(date_fmt); i++) {
-            q = av_small_strptime(p, date_fmt[i], &dt);
-            if (q)
-                break;
+            q = av_small_strptime(p, date_fmt[i], &dt);  // 使用指定格式解析
+            if (q)  // 如果解析成功
+                break;  // 退出循环
         }
 
-        /* if the year-month-day part is missing, then take the
-         * current year-month-day time */
+        // 如果年 - 月 - 日部分解析失败
         if (!q) {
-            today = 1;
-            q = p;
+            today = 1;  // 设置标志，表示使用当前日期
+            q = p;  // 将 `q` 指向输入字符串
         }
-        p = q;
+        p = q;  // 更新 `p` 的位置
 
+        // 如果字符串中有 'T' 或 't'
         if (*p == 'T' || *p == 't')
-            p++;
+            p++;  // 跳过该字符
         else
-            while (av_isspace(*p))
+            while (av_isspace(*p))  // 跳过前面的空白字符
                 p++;
 
-        /* parse the hour-minute-second part */
+        // 尝试解析小时:分钟:秒部分
         for (i = 0; i < FF_ARRAY_ELEMS(time_fmt); i++) {
-            q = av_small_strptime(p, time_fmt[i], &dt);
-            if (q)
-                break;
+            q = av_small_strptime(p, time_fmt[i], &dt);  // 使用指定格式解析
+            if (q)  // 如果解析成功
+                break;  // 退出循环
         }
-    } else {
-        /* parse timestr as a duration */
+    } else {  // 如果是解析持续时间
+        // 如果字符串以 '-' 开头
         if (p[0] == '-') {
-            negative = 1;
-            ++p;
+            negative = 1;  // 设置负数标志
+            ++p;  // 移动指针跳过 '-'
         }
-        /* parse timestr as HH:MM:SS */
+
+        // 尝试按照 "小时:分钟:秒" 格式解析
         q = av_small_strptime(p, "%J:%M:%S", &dt);
-        if (!q) {
-            /* parse timestr as MM:SS */
+        if (!q) {  // 如果该格式解析失败
+            // 尝试按照 "分钟:秒" 格式解析
             q = av_small_strptime(p, "%M:%S", &dt);
-            dt.tm_hour = 0;
+            dt.tm_hour = 0;  // 如果只有分钟和秒，小时设为 0
         }
-        if (!q) {
-            char *o;
-            /* parse timestr as S+ */
-            errno = 0;
-            t = strtoll(p, &o, 10);
-            if (o == p) /* the parsing didn't succeed */
-                return AVERROR(EINVAL);
-            if (errno == ERANGE)
-                return AVERROR(ERANGE);
-            q = o;
-        } else {
-            t = dt.tm_hour * 3600 + dt.tm_min * 60 + dt.tm_sec;
+        if (!q) {  // 如果上述格式都解析失败
+            char *o;  // 临时指针
+            // 将字符串转换为长整型
+            errno = 0;  // 重置错误码
+            t = strtoll(p, &o, 10);  // 进行转换
+            if (o == p)  // 如果转换失败
+                return AVERROR(EINVAL);  // 返回错误码
+            if (errno == ERANGE)  // 如果数值超出范围
+                return AVERROR(ERANGE);  // 返回错误码
+            q = o;  // 更新 `q` 为转换后的结束位置
+        } else {  // 如果前面的解析成功
+            t = dt.tm_hour * 3600 + dt.tm_min * 60 + dt.tm_sec;  // 计算时间值
         }
     }
 
-    /* Now we have all the fields that we can get */
+    // 如果到这里还没有成功解析
     if (!q)
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);  // 返回错误码
 
-    /* parse the .m... part */
+    // 解析小数部分（微秒）
     if (*q == '.') {
         int n;
-        q++;
-        for (n = 100000; n >= 1; n /= 10, q++) {
-            if (!av_isdigit(*q))
-                break;
-            microseconds += n * (*q - '0');
+        q++;  // 移动指针
+        for (n = 100000; n >= 1; n /= 10, q++) {  // 逐位解析微秒部分
+            if (!av_isdigit(*q))  // 如果不是数字
+                break;  // 退出循环
+            microseconds += n * (*q - '0');  // 计算微秒值
         }
-        while (av_isdigit(*q))
+        while (av_isdigit(*q))  // 跳过后面多余的数字
             q++;
     }
 
+    // 如果是解析持续时间
     if (duration) {
-        if (q[0] == 'm' && q[1] == 's') {
-            suffix = 1000;
-            microseconds /= 1000;
-            q += 2;
-        } else if (q[0] == 'u' && q[1] == 's') {
-            suffix = 1;
-            microseconds = 0;
-            q += 2;
-        } else if (*q == 's')
-            q++;
-    } else {
-        int is_utc = *q == 'Z' || *q == 'z';
-        int tzoffset = 0;
-        q += is_utc;
+        if (q[0] == 'm' && q[1] == 's') {  // 如果是毫秒
+            suffix = 1000;  // 设置后缀为 1000
+            microseconds /= 1000;  // 调整微秒值
+            q += 2;  // 移动指针
+        } else if (q[0] == 'u' && q[1] == 's') {  // 如果是微秒
+            suffix = 1;  // 设置后缀为 1
+            microseconds = 0;  // 微秒部分清零
+            q += 2;  // 移动指针
+        } else if (*q == 's')  // 如果是秒
+            q++;  // 移动指针
+    } else {  // 如果不是解析持续时间
+        int is_utc = *q == 'Z' || *q == 'z';  // 判断是否为 UTC 格式
+        int tzoffset = 0;  // 时区偏移量
+
+        q += is_utc;  // 如果是 UTC 格式，移动指针
+
+        // 如果不是今天的日期并且不是 UTC 格式，并且有正负号
         if (!today && !is_utc && (*q == '+' || *q == '-')) {
-            struct tm tz = { 0 };
-            int sign = (*q == '+' ? -1 : 1);
-            q++;
-            p = q;
+            struct tm tz = { 0 };  // 临时的时区时间结构
+            int sign = (*q == '+' ? -1 : 1);  // 确定符号
+            q++;  // 移动指针
+            p = q;  // 保存当前指针位置
+
+            // 尝试按照时区格式解析
             for (i = 0; i < FF_ARRAY_ELEMS(tz_fmt); i++) {
                 q = av_small_strptime(p, tz_fmt[i], &tz);
-                if (q)
-                    break;
+                if (q)  // 如果解析成功
+                    break;  // 退出循环
             }
-            if (!q)
-                return AVERROR(EINVAL);
-            tzoffset = sign * (tz.tm_hour * 60 + tz.tm_min) * 60;
-            is_utc = 1;
+            if (!q)  // 如果解析失败
+                return AVERROR(EINVAL);  // 返回错误码
+
+            tzoffset = sign * (tz.tm_hour * 60 + tz.tm_min) * 60;  // 计算时区偏移量
+            is_utc = 1;  // 设置为 UTC 格式
         }
-        if (today) { /* fill in today's date */
+
+        // 如果是今天的日期
+        if (today) {
+            // 根据是否为 UTC 格式填充今天的日期
             struct tm dt2 = is_utc ? *gmtime_r(&now, &tmbuf) : *localtime_r(&now, &tmbuf);
             dt2.tm_hour = dt.tm_hour;
-            dt2.tm_min  = dt.tm_min;
-            dt2.tm_sec  = dt.tm_sec;
+            dt2.tm_min = dt.tm_min;
+            dt2.tm_sec = dt.tm_sec;
             dt = dt2;
         }
-        dt.tm_isdst = is_utc ? 0 : -1;
+
+        dt.tm_isdst = is_utc? 0 : -1;  // 设置夏令时标志
+
+        // 根据是否为 UTC 格式转换时间
         t = is_utc ? av_timegm(&dt) : mktime(&dt);
-        t += tzoffset;
+        t += tzoffset;  // 加上时区偏移量
     }
 
-    /* Check that we are at the end of the string */
+    // 检查是否已经到达字符串末尾
     if (*q)
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);  // 如果没有，返回错误码
 
+    // 检查时间值是否超出范围
     if (INT64_MAX / suffix < t || t < INT64_MIN / suffix)
         return AVERROR(ERANGE);
-    t *= suffix;
+
+    t *= suffix;  // 乘以后缀
     if (INT64_MAX - microseconds < t)
         return AVERROR(ERANGE);
-    t += microseconds;
+
+    t += microseconds;  // 加上微秒部分
+
     if (t == INT64_MIN && negative)
         return AVERROR(ERANGE);
-    *timeval = negative ? -t : t;
-    return 0;
+
+    *timeval = negative ? -t : t;  // 根据正负标志设置输出的时间值
+
+    return 0;  // 表示成功，返回 0
 }
 
 int av_find_info_tag(char *arg, int arg_size, const char *tag1, const char *info)

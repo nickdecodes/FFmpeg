@@ -86,10 +86,10 @@
  * @}
  */
 
-typedef struct AVDictionaryEntry {
-    char *key;
-    char *value;
-} AVDictionaryEntry;
+typedef struct AVDictionaryEntry {  // 定义一个名为 AVDictionaryEntry 的结构体，并为其定义一个新的类型名 AVDictionaryEntry
+    char *key;  // 指向字典项键的字符指针
+    char *value;  // 指向字典项值的字符指针
+} AVDictionaryEntry;  // 结束结构体的定义
 
 typedef struct AVDictionary AVDictionary;
 

@@ -77,16 +77,17 @@ int opt_default(void *optctx, const char *opt, const char *arg);
  */
 int opt_timelimit(void *optctx, const char *opt, const char *arg);
 
+// 这段代码定义了一个枚举类型OptionType，其中包含了多个选项类型：
 enum OptionType {
-    OPT_TYPE_FUNC,
-    OPT_TYPE_BOOL,
-    OPT_TYPE_STRING,
-    OPT_TYPE_INT,
-    OPT_TYPE_INT64,
-    OPT_TYPE_FLOAT,
-    OPT_TYPE_DOUBLE,
-    OPT_TYPE_TIME,
-};
+    OPT_TYPE_FUNC,  // 表示函数。
+    OPT_TYPE_BOOL,  // 表示布尔类型。
+    OPT_TYPE_STRING,  // 表示字符串类型。
+    OPT_TYPE_INT,  // 表示整数类型。
+    OPT_TYPE_INT64,  // 表示64位整数类型。
+    OPT_TYPE_FLOAT,  // 表示浮点数类型。
+    OPT_TYPE_DOUBLE,  // 表示双精度浮点数类型。
+    OPT_TYPE_TIME,  // 表示时间类型。
+};  // 这些选项类型可以在程序中用于标识不同种类的选项或属性。
 
 /**
  * Parse a string and return its corresponding value as a double.
@@ -123,78 +124,78 @@ typedef struct SpecifierOptList {
     enum OptionType type;
 } SpecifierOptList;
 
-typedef struct OptionDef {
-    const char *name;
-    enum OptionType type;
-    int flags;
+typedef struct OptionDef {  // 定义一个名为 OptionDef 的结构体，并为其定义了一个新的类型名 OptionDef
+    const char *name;  // 选项的名称
+    enum OptionType type;  // 选项的类型（可能是一个枚举类型）
+    int flags;  // 选项的标志
 
 /* The OPT_TYPE_FUNC option takes an argument.
  * Must not be used with other option types, as for those it holds:
  * - OPT_TYPE_BOOL do not take an argument
  * - all other types do
  */
-#define OPT_FUNC_ARG    (1 << 0)
+#define OPT_FUNC_ARG    (1 << 0)  // 定义标志 OPT_FUNC_ARG，表示函数类型的选项带有参数
 /* Program will immediately exit after processing this option */
-#define OPT_EXIT        (1 << 1)
+#define OPT_EXIT        (1 << 1)  // 定义标志 OPT_EXIT，表示处理此选项后程序立即退出
 /* Option is intended for advanced users. Only affects
  * help output.
  */
-#define OPT_EXPERT      (1 << 2)
-#define OPT_VIDEO       (1 << 3)
-#define OPT_AUDIO       (1 << 4)
-#define OPT_SUBTITLE    (1 << 5)
-#define OPT_DATA        (1 << 6)
+#define OPT_EXPERT      (1 << 2)  // 定义标志 OPT_EXPERT，表示选项仅供高级用户使用，仅影响帮助输出
+#define OPT_VIDEO       (1 << 3)  // 定义标志 OPT_VIDEO 
+#define OPT_AUDIO       (1 << 4)  // 定义标志 OPT_AUDIO 
+#define OPT_SUBTITLE    (1 << 5)  // 定义标志 OPT_SUBTITLE 
+#define OPT_DATA        (1 << 6)  // 定义标志 OPT_DATA 
 /* The option is per-file (currently ffmpeg-only). At least one of OPT_INPUT,
  * OPT_OUTPUT, OPT_DECODER must be set when this flag is in use.
    */
-#define OPT_PERFILE     (1 << 7)
+#define OPT_PERFILE     (1 << 7)  // 定义标志 OPT_PERFILE，表示选项是每个文件的（目前仅 ffmpeg 可用）
 
 /* Option is specified as an offset in a passed optctx.
  * Always use as OPT_OFFSET in option definitions. */
-#define OPT_FLAG_OFFSET (1 << 8)
-#define OPT_OFFSET      (OPT_FLAG_OFFSET | OPT_PERFILE)
+#define OPT_FLAG_OFFSET (1 << 8)  // 定义标志 OPT_FLAG_OFFSET
+#define OPT_OFFSET      (OPT_FLAG_OFFSET | OPT_PERFILE)  // 定义标志 OPT_OFFSET
 
 /* Option is to be stored in a SpecifierOptList.
    Always use as OPT_SPEC in option definitions. */
-#define OPT_FLAG_SPEC   (1 << 9)
-#define OPT_SPEC        (OPT_FLAG_SPEC | OPT_OFFSET)
+#define OPT_FLAG_SPEC   (1 << 9)  // 定义标志 OPT_FLAG_SPEC
+#define OPT_SPEC        (OPT_FLAG_SPEC | OPT_OFFSET)  // 定义标志 OPT_SPEC
 
 /* Option applies per-stream (implies OPT_SPEC). */
-#define OPT_FLAG_PERSTREAM  (1 << 10)
-#define OPT_PERSTREAM   (OPT_FLAG_PERSTREAM | OPT_SPEC)
+#define OPT_FLAG_PERSTREAM  (1 << 10)  // 定义标志 OPT_FLAG_PERSTREAM
+#define OPT_PERSTREAM   (OPT_FLAG_PERSTREAM | OPT_SPEC)  // 定义标志 OPT_PERSTREAM
 
 /* ffmpeg-only - specifies whether an OPT_PERFILE option applies to input,
  * output, or both. */
-#define OPT_INPUT       (1 << 11)
-#define OPT_OUTPUT      (1 << 12)
+#define OPT_INPUT       (1 << 11)  // 定义标志 OPT_INPUT
+#define OPT_OUTPUT      (1 << 12)  // 定义标志 OPT_OUTPUT
 
 /* This option is a "canonical" form, to which one or more alternatives
  * exist. These alternatives are listed in u1.names_alt. */
-#define OPT_HAS_ALT     (1 << 13)
+#define OPT_HAS_ALT     (1 << 13)  // 定义标志 OPT_HAS_ALT
 /* This option is an alternative form of some other option, whose
  * name is stored in u1.name_canon */
-#define OPT_HAS_CANON   (1 << 14)
+#define OPT_HAS_CANON   (1 << 14)  // 定义标志 OPT_HAS_CANON
 
 /* ffmpeg-only - OPT_PERFILE may apply to standalone decoders */
-#define OPT_DECODER     (1 << 15)
+#define OPT_DECODER     (1 << 15)  // 定义标志 OPT_DECODER
 
-     union {
-        void *dst_ptr;
-        int (*func_arg)(void *, const char *, const char *);
-        size_t off;
+    union {  // 联合体，用于存储不同类型的数据
+        void *dst_ptr;  // 指针
+        int (*func_arg)(void *, const char *, const char *);  // 函数指针
+        size_t off;  // 无符号整数
     } u;
-    const char *help;
-    const char *argname;
+    const char *help;  // 选项的帮助文本
+    const char *argname;  // 选项参数的名称
 
-    union {
+    union {  // 另一个联合体
         /* Name of the canonical form of this option.
          * Is valid when OPT_HAS_CANON is set. */
-        const char *name_canon;
+        const char *name_canon;  // 规范形式的选项名称
         /* A NULL-terminated list of alternate forms of this option.
          * Is valid when OPT_HAS_ALT is set. */
-        const char * const *names_alt;
+        const char * const *names_alt;  // 选项的替代形式列表
     } u1;
-} OptionDef;
+} OptionDef;  // 结束结构体的定义
 
 /**
  * Print help for all options matching specified flags.

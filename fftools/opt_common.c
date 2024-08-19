@@ -182,30 +182,29 @@ static int warned_cfg = 0;
         }                                                               \
     }                                                                   \
 
-static void print_all_libs_info(int flags, int level)
+static void print_all_libs_info(int flags, int level)  // 定义一个静态的无返回值函数 print_all_libs_info，接受标志 flags 和级别 level 作为参数
 {
-    PRINT_LIB_INFO(avutil,     AVUTIL,     flags, level);
-    PRINT_LIB_INFO(avcodec,    AVCODEC,    flags, level);
-    PRINT_LIB_INFO(avformat,   AVFORMAT,   flags, level);
-    PRINT_LIB_INFO(avdevice,   AVDEVICE,   flags, level);
-    PRINT_LIB_INFO(avfilter,   AVFILTER,   flags, level);
-    PRINT_LIB_INFO(swscale,    SWSCALE,    flags, level);
-    PRINT_LIB_INFO(swresample, SWRESAMPLE, flags, level);
-    PRINT_LIB_INFO(postproc,   POSTPROC,   flags, level);
+    PRINT_LIB_INFO(avutil,     AVUTIL,     flags, level);  // 调用 PRINT_LIB_INFO 宏处理 avutil 库的信息
+    PRINT_LIB_INFO(avcodec,    AVCODEC,    flags, level);  // 调用 PRINT_LIB_INFO 宏处理 avcodec 库的信息
+    PRINT_LIB_INFO(avformat,   AVFORMAT,   flags, level);  // 调用 PRINT_LIB_INFO 宏处理 avformat 库的信息
+    PRINT_LIB_INFO(avdevice,   AVDEVICE,   flags, level);  // 调用 PRINT_LIB_INFO 宏处理 avdevice 库的信息
+    PRINT_LIB_INFO(avfilter,   AVFILTER,   flags, level);  // 调用 PRINT_LIB_INFO 宏处理 avfilter 库的信息
+    PRINT_LIB_INFO(swscale,    SWSCALE,    flags, level);  // 调用 PRINT_LIB_INFO 宏处理 swscale 库的信息
+    PRINT_LIB_INFO(swresample, SWRESAMPLE, flags, level);  // 调用 PRINT_LIB_INFO 宏处理 swresample 库的信息
+    PRINT_LIB_INFO(postproc,   POSTPROC,   flags, level);  // 调用 PRINT_LIB_INFO 宏处理 postproc 库的信息
 }
 
-static void print_program_info(int flags, int level)
+static void print_program_info(int flags, int level)  // 定义一个静态的无返回值函数 print_program_info，接受两个参数：标志 flags 和级别 level
 {
-    const char *indent = flags & INDENT? "  " : "";
+    const char *indent = flags & INDENT? "  " : "";  // 根据 flags 是否包含 INDENT 标志来确定缩进字符串 indent
 
-    av_log(NULL, level, "%s version " FFMPEG_VERSION, program_name);
-    if (flags & SHOW_COPYRIGHT)
-        av_log(NULL, level, " Copyright (c) %d-%d the FFmpeg developers",
+    av_log(NULL, level, "%s version " FFMPEG_VERSION, program_name);  // 使用 av_log 函数输出程序名称和版本，根据 indent 决定是否有缩进
+    if (flags & SHOW_COPYRIGHT)  // 如果 flags 包含 SHOW_COPYRIGHT 标志
+        av_log(NULL, level, " Copyright (c) %d-%d the FFmpeg developers",  // 输出版权信息
                program_birth_year, CONFIG_THIS_YEAR);
-    av_log(NULL, level, "\n");
-    av_log(NULL, level, "%sbuilt with %s\n", indent, CC_IDENT);
-
-    av_log(NULL, level, "%sconfiguration: " FFMPEG_CONFIGURATION "\n", indent);
+    av_log(NULL, level, "\n");  // 换行输出
+    av_log(NULL, level, "%sbuilt with %s\n", indent, CC_IDENT);  // 输出构建相关的信息，根据 indent 决定是否有缩进
+    av_log(NULL, level, "%sconfiguration: " FFMPEG_CONFIGURATION "\n", indent);  // 输出配置信息，根据 indent 决定是否有缩进
 }
 
 static void print_buildconf(int flags, int level)
@@ -234,15 +233,15 @@ static void print_buildconf(int flags, int level)
     }
 }
 
-void show_banner(int argc, char **argv, const OptionDef *options)
+void show_banner(int argc, char **argv, const OptionDef *options)  // 定义一个名为 show_banner 的无返回值函数，接受三个参数
 {
-    int idx = locate_option(argc, argv, options, "version");
-    if (hide_banner || idx)
-        return;
+    int idx = locate_option(argc, argv, options, "version");  // 调用 locate_option 函数查找 "version" 选项的位置，并将结果存储在 idx 中
+    if (hide_banner || idx)  // 如果 hide_banner 为真或者找到了 "version" 选项
+        return;  // 函数直接返回，不执行后续操作
 
-    print_program_info (INDENT|SHOW_COPYRIGHT, AV_LOG_INFO);
-    print_all_libs_info(INDENT|SHOW_CONFIG,  AV_LOG_INFO);
-    print_all_libs_info(INDENT|SHOW_VERSION, AV_LOG_INFO);
+    print_program_info (INDENT|SHOW_COPYRIGHT, AV_LOG_INFO);  // 调用 print_program_info 函数，并传递特定的参数
+    print_all_libs_info(INDENT|SHOW_CONFIG,  AV_LOG_INFO);  // 调用 print_all_libs_info 函数，并传递特定的参数
+    print_all_libs_info(INDENT|SHOW_VERSION, AV_LOG_INFO);  // 调用 print_all_libs_info 函数，并传递特定的参数
 }
 
 int show_version(void *optctx, const char *opt, const char *arg)
@@ -1142,76 +1141,77 @@ static void log_callback_report(void *ptr, int level, const char *fmt, va_list v
     }
 }
 
-int init_report(const char *env, FILE **file)
+int init_report(const char *env, FILE **file)  // 定义一个名为 init_report 的函数，返回整数，接受环境变量字符串和文件指针的指针作为参数
 {
-    char *filename_template = NULL;
-    char *key, *val;
-    int ret, count = 0;
-    int prog_loglevel, envlevel = 0;
-    time_t now;
-    struct tm *tm;
-    AVBPrint filename;
+    char *filename_template = NULL;  // 初始化文件名模板为空
+    char *key, *val;  // 定义用于存储键和值的字符指针
+    int ret, count = 0;  // 定义返回值、计数变量并初始化为 0
+    int prog_loglevel, envlevel = 0;  // 定义程序日志级别和环境日志级别变量，环境日志级别初始化为 0
+    time_t now;  // 定义时间变量
+    struct tm *tm;  // 定义时间结构体指针
+    AVBPrint filename;  // 定义 AVBPrint 类型的变量 filename
 
-    if (report_file) /* already opened */
-        return 0;
-    time(&now);
-    tm = localtime(&now);
+    if (report_file) /* already opened */  // 如果报告文件已经打开
+        return 0;  // 直接返回 0
+    time(&now);  // 获取当前时间
+    tm = localtime(&now);  // 将时间转换为本地时间并存储在 tm 中
 
-    while (env && *env) {
-        if ((ret = av_opt_get_key_value(&env, "=", ":", 0, &key, &val)) < 0) {
-            if (count)
-                av_log(NULL, AV_LOG_ERROR,
+    while (env && *env) {  // 当环境变量不为空且还有内容
+        if ((ret = av_opt_get_key_value(&env, "=", ":", 0, &key, &val)) < 0) {  // 尝试获取键值对，如果获取失败
+            if (count)  // 如果已经处理过一些键值对
+                av_log(NULL, AV_LOG_ERROR,  // 记录错误日志
                        "Failed to parse FFREPORT environment variable: %s\n",
                        av_err2str(ret));
-            break;
+            break;  // 退出循环
         }
-        if (*env)
-            env++;
-        count++;
-        if (!strcmp(key, "file")) {
-            av_free(filename_template);
-            filename_template = val;
-            val = NULL;
-        } else if (!strcmp(key, "level")) {
-            char *tail;
-            report_file_level = strtol(val, &tail, 10);
-            if (*tail) {
-                av_log(NULL, AV_LOG_FATAL, "Invalid report file level\n");
-                av_free(key);
-                av_free(val);
-                av_free(filename_template);
-                return AVERROR(EINVAL);
+        if (*env)  // 如果环境变量字符串还有内容
+            env++;  // 移动指针
+        count++;  // 计数增加
+        if (!strcmp(key, "file")) {  // 如果键是 "file"
+            av_free(filename_template);  // 释放之前的文件名模板内存
+            filename_template = val;  // 保存新的文件名模板
+            val = NULL;  // 置空 val
+        } else if (!strcmp(key, "level")) {  // 如果键是 "level"
+            char *tail;  // 定义用于转换的尾指针
+            report_file_level = strtol(val, &tail, 10);  // 将值转换为整数作为报告文件级别
+            if (*tail) {  // 如果转换不完全成功
+                av_log(NULL, AV_LOG_FATAL, "Invalid report file level\n");  // 记录致命错误日志
+                av_free(key);  // 释放内存
+                av_free(val);  // 释放内存
+                av_free(filename_template);  // 释放内存
+                return AVERROR(EINVAL);  // 返回错误码
             }
-            envlevel = 1;
-        } else {
-            av_log(NULL, AV_LOG_ERROR, "Unknown key '%s' in FFREPORT\n", key);
+            envlevel = 1;  // 标记环境级别已设置
+        } else {  // 对于未知的键
+            av_log(NULL, AV_LOG_ERROR, "Unknown key '%s' in FFREPORT\n", key);  // 记录错误日志
         }
-        av_free(val);
-        av_free(key);
+        av_free(val);  // 释放值的内存
+        av_free(key);  // 释放键的内存
     }
 
-    av_bprint_init(&filename, 0, AV_BPRINT_SIZE_AUTOMATIC);
-    expand_filename_template(&filename,
+    av_bprint_init(&filename, 0, AV_BPRINT_SIZE_AUTOMATIC);  // 初始化 AVBPrint
+    expand_filename_template(&filename,  // 扩展文件名模板
                              av_x_if_null(filename_template, "%p-%t.log"), tm);
-    av_free(filename_template);
-    if (!av_bprint_is_complete(&filename)) {
-        av_log(NULL, AV_LOG_ERROR, "Out of memory building report file name\n");
-        return AVERROR(ENOMEM);
+    av_free(filename_template);  // 释放文件名模板的内存
+
+    if (!av_bprint_is_complete(&filename)) {  // 如果文件名构建不完整
+        av_log(NULL, AV_LOG_ERROR, "Out of memory building report file name\n");  // 记录错误日志
+        return AVERROR(ENOMEM);  // 返回内存不足的错误码
     }
 
-    prog_loglevel = av_log_get_level();
-    if (!envlevel)
-        report_file_level = FFMAX(report_file_level, prog_loglevel);
+    prog_loglevel = av_log_get_level();  // 获取程序的日志级别
+    if (!envlevel)  // 如果环境级别未设置
+        report_file_level = FFMAX(report_file_level, prog_loglevel);  // 取两者中的较大值
 
-    report_file = fopen(filename.str, "w");
-    if (!report_file) {
-        int ret = AVERROR(errno);
-        av_log(NULL, AV_LOG_ERROR, "Failed to open report \"%s\": %s\n",
+    report_file = fopen(filename.str, "w");  // 以写入模式打开报告文件
+    if (!report_file) {  // 如果打开失败
+        int ret = AVERROR(errno);  // 获取错误码
+        av_log(NULL, AV_LOG_ERROR, "Failed to open report \"%s\": %s\n",  // 记录错误日志
                filename.str, strerror(errno));
-        return ret;
+        return ret;  // 返回错误码
     }
-    av_log_set_callback(log_callback_report);
-    av_log(NULL, AV_LOG_INFO,
+    av_log_set_callback(log_callback_report);  // 设置日志回调函数
+    av_log(NULL, AV_LOG_INFO,  // 记录信息日志
            "%s started on %04d-%02d-%02d at %02d:%02d:%02d\n"
            "Report written to \"%s\"\n"
            "Log level: %d\n",
@@ -1219,12 +1219,12 @@ int init_report(const char *env, FILE **file)
            tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
            tm->tm_hour, tm->tm_min, tm->tm_sec,
            filename.str, report_file_level);
-    av_bprint_finalize(&filename, NULL);
+    av_bprint_finalize(&filename, NULL);  // 完成 AVBPrint 的操作
 
-    if (file)
-        *file = report_file;
+    if (file)  // 如果提供了文件指针的指针
+        *file = report_file;  // 将报告文件指针赋值给它
 
-    return 0;
+    return 0;  // 返回 0 表示成功
 }
 
 int opt_report(void *optctx, const char *opt, const char *arg)
@@ -1246,81 +1246,82 @@ int opt_max_alloc(void *optctx, const char *opt, const char *arg)
     return 0;
 }
 
-int opt_loglevel(void *optctx, const char *opt, const char *arg)
+int opt_loglevel(void *optctx, const char *opt, const char *arg)  // 定义一个名为 opt_loglevel 的函数，返回整数，接受三个参数
 {
-    const struct { const char *name; int level; } log_levels[] = {
-        { "quiet"  , AV_LOG_QUIET   },
-        { "panic"  , AV_LOG_PANIC   },
-        { "fatal"  , AV_LOG_FATAL   },
-        { "error"  , AV_LOG_ERROR   },
+    const struct { const char *name; int level; } log_levels[] = {  // 定义一个包含名称和级别对的结构体数组
+        { "quiet" , AV_LOG_QUIET   },
+        { "panic" , AV_LOG_PANIC   },
+        { "fatal" , AV_LOG_FATAL   },
+        { "error" , AV_LOG_ERROR   },
         { "warning", AV_LOG_WARNING },
-        { "info"   , AV_LOG_INFO    },
+        { "info"  , AV_LOG_INFO    },
         { "verbose", AV_LOG_VERBOSE },
-        { "debug"  , AV_LOG_DEBUG   },
-        { "trace"  , AV_LOG_TRACE   },
+        { "debug" , AV_LOG_DEBUG   },
+        { "trace" , AV_LOG_TRACE   },
     };
-    const char *token;
-    char *tail;
-    int flags = av_log_get_flags();
-    int level = av_log_get_level();
-    int cmd, i = 0;
+    const char *token;  // 定义一个字符指针 token
+    char *tail;  // 定义一个字符指针 tail
+    int flags = av_log_get_flags();  // 获取当前的日志标志
+    int level = av_log_get_level();  // 获取当前的日志级别
+    int cmd, i = 0;  // 定义整数 cmd 和初始化 i 为 0
 
-    av_assert0(arg);
-    while (*arg) {
-        token = arg;
-        if (*token == '+' || *token == '-') {
-            cmd = *token++;
+    av_assert0(arg);  // 断言 arg 不为空
+
+    while (*arg) {  // 当 arg 指向的字符串不为空
+        token = arg;  // 将 token 指向 arg
+        if (*token == '+' || *token == '-') {  // 如果 token 指向的字符是 '+' 或 '-'
+            cmd = *token++;  // 将该字符保存到 cmd 并移动 token 指针
         } else {
-            cmd = 0;
+            cmd = 0;  // 否则 cmd 为 0
         }
-        if (!i && !cmd) {
+        if (!i &&!cmd) {  // 如果是第一次循环且没有命令符号
             flags = 0;  /* missing relative prefix, build absolute value */
         }
-        if (av_strstart(token, "repeat", &arg)) {
-            if (cmd == '-') {
-                flags |= AV_LOG_SKIP_REPEATED;
+        if (av_strstart(token, "repeat", &arg)) {  // 如果 token 以 "repeat" 开头
+            if (cmd == '-') {  // 根据命令符号
+                flags |= AV_LOG_SKIP_REPEATED;  // 设置相应的标志
             } else {
-                flags &= ~AV_LOG_SKIP_REPEATED;
+                flags &= ~AV_LOG_SKIP_REPEATED;  // 清除相应的标志
             }
-        } else if (av_strstart(token, "level", &arg)) {
+        } else if (av_strstart(token, "level", &arg)) {  // 类似地处理 "level"
             if (cmd == '-') {
                 flags &= ~AV_LOG_PRINT_LEVEL;
             } else {
                 flags |= AV_LOG_PRINT_LEVEL;
             }
         } else {
-            break;
+            break;  // 如果都不匹配，退出循环
         }
-        i++;
+        i++;  // 循环计数增加
     }
-    if (!*arg) {
-        goto end;
-    } else if (*arg == '+') {
-        arg++;
-    } else if (!i) {
+    if (!*arg) {  // 如果 arg 已经处理完
+        goto end;  // 跳转到 end 标签
+    } else if (*arg == '+') {  // 如果 arg 指向 '+'
+        arg++;  // 移动 arg 指针
+    } else if (!i) {  // 如果是第一次处理且没有命令符号
         flags = av_log_get_flags();  /* level value without prefix, reset flags */
     }
 
-    for (i = 0; i < FF_ARRAY_ELEMS(log_levels); i++) {
-        if (!strcmp(log_levels[i].name, arg)) {
-            level = log_levels[i].level;
-            goto end;
+    for (i = 0; i < FF_ARRAY_ELEMS(log_levels); i++) {  // 遍历 log_levels 数组
+        if (!strcmp(log_levels[i].name, arg)) {  // 如果找到匹配的名称
+            level = log_levels[i].level;  // 设置相应的级别
+            goto end;  // 跳转到 end 标签
         }
     }
 
-    level = strtol(arg, &tail, 10);
-    if (*tail) {
+    level = strtol(arg, &tail, 10);  // 将 arg 转换为整数作为级别
+    if (*tail) {  // 如果转换不完全成功
         av_log(NULL, AV_LOG_FATAL, "Invalid loglevel \"%s\". "
-               "Possible levels are numbers or:\n", arg);
+               "Possible levels are numbers or:\n", arg);  // 记录错误日志
         for (i = 0; i < FF_ARRAY_ELEMS(log_levels); i++)
-            av_log(NULL, AV_LOG_FATAL, "\"%s\"\n", log_levels[i].name);
-        return AVERROR(EINVAL);
+            av_log(NULL, AV_LOG_FATAL, "\"%s\"\n", log_levels[i].name);  // 打印可能的级别名称
+        return AVERROR(EINVAL);  // 返回错误码
     }
 
 end:
-    av_log_set_flags(flags);
-    av_log_set_level(level);
-    return 0;
+    av_log_set_flags(flags);  // 设置日志标志
+    av_log_set_level(level);  // 设置日志级别
+    return 0;  // 返回 0 表示成功
 }
 
 #if CONFIG_AVDEVICE

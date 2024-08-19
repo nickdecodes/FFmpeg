@@ -111,41 +111,49 @@ int av_hash_get_size(const AVHashContext *ctx)
     return hashdesc[ctx->type].size;
 }
 
-int av_hash_alloc(AVHashContext **ctx, const char *name)
+int av_hash_alloc(AVHashContext **ctx, const char *name)  // 定义一个函数 av_hash_alloc，返回整数，接受一个指向 AVHashContext 指针的指针 ctx 和一个常量字符指针 name
 {
-    AVHashContext *res;
-    int i;
-    *ctx = NULL;
-    for (i = 0; i < NUM_HASHES; i++)
-        if (av_strcasecmp(name, hashdesc[i].name) == 0)
-            break;
-    if (i >= NUM_HASHES) return AVERROR(EINVAL);
-    res = av_mallocz(sizeof(*res));
-    if (!res) return AVERROR(ENOMEM);
-    res->type = i;
-    switch (i) {
-    case MD5:     res->ctx = av_md5_alloc(); break;
-    case MURMUR3: res->ctx = av_murmur3_alloc(); break;
+    AVHashContext *res;  // 定义一个 AVHashContext 类型的指针 res
+    int i;  // 定义一个整数变量 i
+
+    *ctx = NULL;  // 将传入的 ctx 指针指向的内容置为空
+
+    for (i = 0; i < NUM_HASHES; i++)  // 遍历所有可能的哈希类型
+        if (av_strcasecmp(name, hashdesc[i].name) == 0)  // 比较输入的名称和当前哈希类型的名称（不区分大小写）
+            break;  // 如果匹配，退出循环
+
+    if (i >= NUM_HASHES) return AVERROR(EINVAL);  // 如果没有找到匹配的哈希类型，返回无效参数错误码
+
+    res = av_mallocz(sizeof(*res));  // 分配并清零内存来存储 AVHashContext
+    if (!res) return AVERROR(ENOMEM);  // 如果内存分配失败，返回内存不足错误码
+
+    res->type = i;  // 设置哈希类型
+
+    switch (i) {  // 根据哈希类型进行不同的操作
+    case MD5:     res->ctx = av_md5_alloc(); break;  // 如果是 MD5 类型，分配相关上下文
+    case MURMUR3: res->ctx = av_murmur3_alloc(); break;  // 如果是 MURMUR3 类型，分配相关上下文
     case RIPEMD128:
     case RIPEMD160:
     case RIPEMD256:
-    case RIPEMD320: res->ctx = av_ripemd_alloc(); break;
+    case RIPEMD320: res->ctx = av_ripemd_alloc(); break;  // 对于不同的 RIPEMD 类型，分配相关上下文
     case SHA160:
     case SHA224:
-    case SHA256:  res->ctx = av_sha_alloc(); break;
+    case SHA256:  res->ctx = av_sha_alloc(); break;  // 对于不同的 SHA 类型，分配相关上下文
     case SHA512_224:
     case SHA512_256:
     case SHA384:
-    case SHA512:  res->ctx = av_sha512_alloc(); break;
-    case CRC32:   res->crctab = av_crc_get_table(AV_CRC_32_IEEE_LE); break;
-    case ADLER32: break;
+    case SHA512:  res->ctx = av_sha512_alloc(); break;  // 对于不同的 SHA512 变体类型，分配相关上下文
+    case CRC32:   res->crctab = av_crc_get_table(AV_CRC_32_IEEE_LE); break;  // 如果是 CRC32 类型，获取相关表
+    case ADLER32: break;  // 对于 ADLER32 类型，不进行额外操作
     }
-    if (i != ADLER32 && i != CRC32 && !res->ctx) {
-        av_free(res);
-        return AVERROR(ENOMEM);
+
+    if (i != ADLER32 && i != CRC32 && !res->ctx) {  // 对于除了 ADLER32 和 CRC32 之外的类型，如果上下文分配失败
+        av_free(res);  // 释放已分配的内存
+        return AVERROR(ENOMEM);  // 返回内存不足错误码
     }
-    *ctx = res;
-    return 0;
+
+    *ctx = res;  // 将分配好的 AVHashContext 指针通过 ctx 传出
+    return 0;  // 函数成功，返回 0
 }
 
 void av_hash_init(AVHashContext *ctx)

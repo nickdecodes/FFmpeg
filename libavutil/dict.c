@@ -31,9 +31,9 @@
 #include "time_internal.h"
 #include "bprint.h"
 
-struct AVDictionary {
-    int count;
-    AVDictionaryEntry *elems;
+struct AVDictionary {  // 定义一个名为 AVDictionary 的结构体
+    int count;  // 表示字典中元素的数量
+    AVDictionaryEntry *elems;  // 指向字典元素的指针
 };
 
 int av_dict_count(const AVDictionary *m)
@@ -201,36 +201,50 @@ int av_dict_parse_string(AVDictionary **pm, const char *str,
                          const char *key_val_sep, const char *pairs_sep,
                          int flags)
 {
+    // 定义一个整型变量 ret 用于存储函数的返回值
     int ret;
 
+    // 如果输入的字符串 str 为空指针，直接返回 0
     if (!str)
         return 0;
 
-    /* ignore STRDUP flags */
+    // 忽略特定的标志位 AV_DICT_DONT_STRDUP_KEY 和 AV_DICT_DONT_STRDUP_VAL
     flags &= ~(AV_DICT_DONT_STRDUP_KEY | AV_DICT_DONT_STRDUP_VAL);
 
+    // 只要字符串 str 不为空
     while (*str) {
+        // 调用 parse_key_value_pair 函数来处理键值对，并将返回值存储在 ret 中
         if ((ret = parse_key_value_pair(pm, &str, key_val_sep, pairs_sep, flags)) < 0)
+            // 如果返回值小于 0，说明出现错误，直接返回该返回值
             return ret;
 
+        // 如果字符串 str 还有内容，指针向后移动一位
         if (*str)
             str++;
     }
 
+    // 循环结束后，返回 0 表示正常结束
     return 0;
 }
 
 void av_dict_free(AVDictionary **pm)
 {
+    // 获取指向 AVDictionary 结构体的指针 m，通过解引用两次 pm 得到
     AVDictionary *m = *pm;
 
+    // 如果 m 不为空
     if (m) {
+        // 循环，直到 m 的 count 减为 0
         while (m->count--) {
+            // 释放 m->elems[m->count].key 所指向的内存
             av_freep(&m->elems[m->count].key);
+            // 释放 m->elems[m->count].value 所指向的内存
             av_freep(&m->elems[m->count].value);
         }
+        // 释放 m->elems 所指向的内存
         av_freep(&m->elems);
     }
+    // 释放 pm 所指向的内存
     av_freep(pm);
 }
 

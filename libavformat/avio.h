@@ -157,7 +157,7 @@ enum AVIODataMarkerType {
  *       when implementing custom I/O. Normally these are set to the
  *       function pointers specified in avio_alloc_context()
  */
-typedef struct AVIOContext {
+typedef struct AVIOContext {  // 定义一个名为 AVIOContext 的结构体，并为其定义了一个新的类型名 AVIOContext
     /**
      * A class for private options.
      *
@@ -170,7 +170,7 @@ typedef struct AVIOContext {
      * warning -- this field can be NULL, be sure to not pass this AVIOContext
      * to any av_opt_* functions in that case.
      */
-    const AVClass *av_class;
+    const AVClass *av_class;  // 指向私有选项类的指针
 
     /*
      * The following shows the relationship between buffer, buf_ptr,
@@ -222,89 +222,87 @@ typedef struct AVIOContext {
      *               +-------------+----------------------------------------------+
      *
      */
-    unsigned char *buffer;  /**< Start of the buffer. */
-    int buffer_size;        /**< Maximum buffer size */
-    unsigned char *buf_ptr; /**< Current position in the buffer */
+    unsigned char *buffer;  /**< Start of the buffer. */  // 缓冲区的起始地址
+    int buffer_size;        /**< Maximum buffer size */  // 缓冲区的最大大小
+    unsigned char *buf_ptr; /**< Current position in the buffer */  // 缓冲区中的当前位置指针
     unsigned char *buf_end; /**< End of the data, may be less than
                                  buffer+buffer_size if the read function returned
                                  less data than requested, e.g. for streams where
-                                 no more data has been received yet. */
+                                 no more data has been received yet. */  // 数据的结束位置
     void *opaque;           /**< A private pointer, passed to the read/write/seek/...
-                                 functions. */
-    int (*read_packet)(void *opaque, uint8_t *buf, int buf_size);
-    int (*write_packet)(void *opaque, const uint8_t *buf, int buf_size);
-    int64_t (*seek)(void *opaque, int64_t offset, int whence);
-    int64_t pos;            /**< position in the file of the current buffer */
-    int eof_reached;        /**< true if was unable to read due to error or eof */
-    int error;              /**< contains the error code or 0 if no error happened */
-    int write_flag;         /**< true if open for writing */
-    int max_packet_size;
+                                 functions. */  // 私有指针，传递给读/写/查找等函数
+    int (*read_packet)(void *opaque, uint8_t *buf, int buf_size);  // 读数据包的函数指针
+    int (*write_packet)(void *opaque, const uint8_t *buf, int buf_size);  // 写数据包的函数指针
+    int64_t (*seek)(void *opaque, int64_t offset, int whence);  // 查找的函数指针
+    int64_t pos;            /**< position in the file of the current buffer */  // 当前缓冲区在文件中的位置
+    int eof_reached;        /**< true if was unable to read due to error or eof */  // 是否达到文件末尾
+    int error;              /**< contains the error code or 0 if no error happened */  // 错误码
+    int write_flag;         /**< true if open for writing */  // 写标志
+    int max_packet_size;  // 最大数据包大小
     int min_packet_size;    /**< Try to buffer at least this amount of data
-                                 before flushing it. */
-    unsigned long checksum;
-    unsigned char *checksum_ptr;
-    unsigned long (*update_checksum)(unsigned long checksum, const uint8_t *buf, unsigned int size);
+                                 before flushing it. */  // 刷新前缓冲的最小数据量
+    unsigned long checksum;  // 校验和
+    unsigned char *checksum_ptr;  // 校验和指针
+    unsigned long (*update_checksum)(unsigned long checksum, const uint8_t *buf, unsigned int size);  // 更新校验和的函数指针
     /**
      * Pause or resume playback for network streaming protocols - e.g. MMS.
      */
-    int (*read_pause)(void *opaque, int pause);
+    int (*read_pause)(void *opaque, int pause);  // 读暂停/恢复的函数指针
     /**
      * Seek to a given timestamp in stream with the specified stream_index.
      * Needed for some network streaming protocols which don't support seeking
      * to byte position.
      */
     int64_t (*read_seek)(void *opaque, int stream_index,
-                         int64_t timestamp, int flags);
+                         int64_t timestamp, int flags);  // 按时间戳查找的函数指针
     /**
      * A combination of AVIO_SEEKABLE_ flags or 0 when the stream is not seekable.
      */
-    int seekable;
+    int seekable;  // 可查找标志
 
     /**
      * avio_read and avio_write should if possible be satisfied directly
      * instead of going through a buffer, and avio_seek will always
      * call the underlying seek function directly.
      */
-    int direct;
+    int direct;  // 直接操作标志
 
     /**
      * ',' separated list of allowed protocols.
      */
-    const char *protocol_whitelist;
-
+    const char *protocol_whitelist;  // 允许的协议白名单
     /**
      * ',' separated list of disallowed protocols.
      */
-    const char *protocol_blacklist;
+    const char *protocol_blacklist;  // 不允许的协议黑名单
 
     /**
      * A callback that is used instead of write_packet.
      */
     int (*write_data_type)(void *opaque, const uint8_t *buf, int buf_size,
-                           enum AVIODataMarkerType type, int64_t time);
+                           enum AVIODataMarkerType type, int64_t time);  // 写数据类型的回调函数指针
     /**
      * If set, don't call write_data_type separately for AVIO_DATA_MARKER_BOUNDARY_POINT,
      * but ignore them and treat them as AVIO_DATA_MARKER_UNKNOWN (to avoid needlessly
      * small chunks of data returned from the callback).
      */
-    int ignore_boundary_point;
+    int ignore_boundary_point;  // 忽略边界点标志
 
     /**
      * Maximum reached position before a backward seek in the write buffer,
      * used keeping track of already written data for a later flush.
      */
-    unsigned char *buf_ptr_max;
+    unsigned char *buf_ptr_max;  // 写缓冲区中回退查找前达到的最大位置
 
     /**
      * Read-only statistic of bytes read for this AVIOContext.
      */
-    int64_t bytes_read;
-
+    int64_t bytes_read;  // 只读，已读字节统计
     /**
      * Read-only statistic of bytes written for this AVIOContext.
      */
-    int64_t bytes_written;
-} AVIOContext;
+    int64_t bytes_written;  // 只读，已写字节统计
+} AVIOContext;  // 结束结构体的定义
 
 /**
  * Return the name of the protocol that will handle the passed URL.

@@ -253,12 +253,14 @@ void av_freep(void *arg)
     av_free(val);
 }
 
-void *av_mallocz(size_t size)
+void *av_mallocz(size_t size)  // 定义一个函数 av_mallocz，返回一个 void 类型的指针，接受一个 size_t 类型的参数 size 表示要分配的内存大小
 {
-    void *ptr = av_malloc(size);
-    if (ptr)
-        memset(ptr, 0, size);
-    return ptr;
+    void *ptr = av_malloc(size);  // 调用 av_malloc 函数分配指定大小的内存，并将返回的指针存储在 ptr 中
+
+    if (ptr)  // 如果内存分配成功（ptr 不为 NULL）
+        memset(ptr, 0, size);  // 使用 memset 函数将分配的内存初始化为 0
+
+    return ptr;  // 返回分配并初始化（如果成功）的内存指针
 }
 
 void *av_calloc(size_t nmemb, size_t size)

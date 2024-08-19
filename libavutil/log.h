@@ -63,39 +63,38 @@ struct AVOptionRanges;
  * arbitrary struct of which the first field is a pointer to an
  * AVClass struct (e.g. AVCodecContext, AVFormatContext etc.).
  */
-typedef struct AVClass {
+typedef struct AVClass {  // 定义一个名为 AVClass 的结构体，并为其定义了一个新的类型名 AVClass
     /**
      * The name of the class; usually it is the same name as the
      * context structure type to which the AVClass is associated.
      */
-    const char* class_name;
+    const char* class_name;  // 类的名称，通常与关联的上下文结构类型名称相同
 
     /**
      * A pointer to a function which returns the name of a context
      * instance ctx associated with the class.
      */
-    const char* (*item_name)(void* ctx);
+    const char* (*item_name)(void* ctx);  // 指向一个函数的指针，该函数返回与类相关的上下文实例的名称
 
     /**
      * a pointer to the first option specified in the class if any or NULL
      *
      * @see av_set_default_options()
      */
-    const struct AVOption *option;
+    const struct AVOption *option;  // 指向类中指定的第一个选项的指针，如果有的话，否则为 NULL
 
     /**
      * LIBAVUTIL_VERSION with which this structure was created.
      * This is used to allow fields to be added without requiring major
      * version bumps everywhere.
      */
-
-    int version;
+    int version;  // 创建此结构时的 LIBAVUTIL_VERSION
 
     /**
      * Offset in the structure where log_level_offset is stored.
      * 0 means there is no such variable
      */
-    int log_level_offset_offset;
+    int log_level_offset_offset;  // 存储 log_level_offset 的结构偏移量，如果为 0 则表示没有此变量
 
     /**
      * Offset in the structure where a pointer to the parent context for
@@ -104,31 +103,31 @@ typedef struct AVClass {
      * could then leverage to display the parent context.
      * The offset can be NULL.
      */
-    int parent_log_context_offset;
+    int parent_log_context_offset;  // 存储父日志上下文指针的结构偏移量，偏移量可以为 NULL
 
     /**
      * Category used for visualization (like color)
      * This is only set if the category is equal for all objects using this class.
      * available since version (51 << 16 | 56 << 8 | 100)
      */
-    AVClassCategory category;
+    AVClassCategory category;  // 用于可视化的类别（如颜色）
 
     /**
      * Callback to return the category.
      * available since version (51 << 16 | 59 << 8 | 100)
      */
-    AVClassCategory (*get_category)(void* ctx);
+    AVClassCategory (*get_category)(void* ctx);  // 返回类别的回调函数
 
     /**
      * Callback to return the supported/allowed ranges.
      * available since version (52.12)
      */
-    int (*query_ranges)(struct AVOptionRanges **, void *obj, const char *key, int flags);
+    int (*query_ranges)(struct AVOptionRanges **, void *obj, const char *key, int flags);  // 返回支持/允许范围的回调函数
 
     /**
      * Return next AVOptions-enabled child or NULL
      */
-    void* (*child_next)(void *obj, void *prev);
+    void* (*child_next)(void *obj, void *prev);  // 返回下一个启用 AVOptions 的子对象或 NULL 的函数指针
 
     /**
      * Iterate over the AVClasses corresponding to potential AVOptions-enabled
@@ -143,8 +142,8 @@ typedef struct AVClass {
      *       iterates over _already existing_ objects, while child_class_iterate
      *       iterates over _all possible_ children.
      */
-    const struct AVClass* (*child_class_iterate)(void **iter);
-} AVClass;
+    const struct AVClass* (*child_class_iterate)(void **iter);  // 遍历潜在启用 AVOptions 的子对象的 AVClass 的函数指针
+} AVClass;  // 结束结构体的定义
 
 /**
  * @addtogroup lavu_log
