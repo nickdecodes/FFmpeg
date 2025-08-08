@@ -374,7 +374,7 @@ int ff_img_read_header(AVFormatContext *s1)
             st->codecpar->codec_id = ff_guess_image2_codec(s->path);
         if (st->codecpar->codec_id == AV_CODEC_ID_LJPEG)
             st->codecpar->codec_id = AV_CODEC_ID_MJPEG;
-        if (st->codecpar->codec_id == AV_CODEC_ID_ALIAS_PIX) // we cannot distingiush this from BRENDER_PIX
+        if (st->codecpar->codec_id == AV_CODEC_ID_ALIAS_PIX) // we cannot distinguish this from BRENDER_PIX
             st->codecpar->codec_id = AV_CODEC_ID_NONE;
     }
     if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
@@ -563,6 +563,7 @@ int ff_img_read_packet(AVFormatContext *s1, AVPacket *pkt)
         }
         goto fail;
     } else {
+        memset(pkt->data + pkt->size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
         s->img_count++;
         s->img_number++;
         s->pts++;

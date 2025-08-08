@@ -56,5 +56,7 @@ typedef struct AVAES {
     void (*crypt)(struct AVAES *a, uint8_t *dst, const uint8_t *src, int count, uint8_t *iv, int rounds);
 } AVAES;
 
+void ff_init_aes_x86(AVAES *a, int decrypt);
+
 #endif /* AVUTIL_AES_INTERNAL_H */
 // 结束如果没有定义 AVUTIL_AES_INTERNAL_H 的条件编译

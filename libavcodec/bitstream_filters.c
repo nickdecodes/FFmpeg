@@ -25,12 +25,14 @@
 #include "bsf_internal.h"
 
 extern const FFBitStreamFilter ff_aac_adtstoasc_bsf;
+extern const FFBitStreamFilter ff_apv_metadata_bsf;
 extern const FFBitStreamFilter ff_av1_frame_merge_bsf;
 extern const FFBitStreamFilter ff_av1_frame_split_bsf;
 extern const FFBitStreamFilter ff_av1_metadata_bsf;
 extern const FFBitStreamFilter ff_chomp_bsf;
 extern const FFBitStreamFilter ff_dump_extradata_bsf;
 extern const FFBitStreamFilter ff_dca_core_bsf;
+extern const FFBitStreamFilter ff_dovi_rpu_bsf;
 extern const FFBitStreamFilter ff_dts2pts_bsf;
 extern const FFBitStreamFilter ff_dv_error_marker_bsf;
 extern const FFBitStreamFilter ff_eac3_core_bsf;

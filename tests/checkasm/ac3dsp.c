@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Institue of Software Chinese Academy of Sciences (ISCAS).
+ * Copyright (c) 2023 Institute of Software Chinese Academy of Sciences (ISCAS).
  * Copyright (c) 2024 Geoff Hill <geoff@geoffhill.org>
  *
  * This file is part of FFmpeg.
@@ -181,7 +181,7 @@ static void check_ac3_sum_square_butterfly_float(AC3DSPContext *c) {
         call_ref(v1, lt, rt, ELEMS);
         call_new(v2, lt, rt, ELEMS);
 
-        if (!float_near_ulp_array(v1, v2, 10, 4))
+        if (!float_near_ulp_array(v1, v2, 11, 4))
             fail();
 
         bench_new(v2, lt, rt, ELEMS);

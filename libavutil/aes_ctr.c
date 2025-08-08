@@ -29,6 +29,7 @@
 #include "aes_ctr.h"
 #include "aes.h"
 #include "aes_internal.h"
+#include "intreadwrite.h"
 #include "macros.h"
 #include "mem.h"
 #include "random_seed.h"
@@ -39,13 +40,8 @@
 
 // 定义 AVAESCTR 结构体
 typedef struct AVAESCTR {
-    // 计数器数组
-    uint8_t counter[AES_BLOCK_SIZE];
-    // 加密后的计数器数组
-    uint8_t encrypted_counter[AES_BLOCK_SIZE];
-    // 块偏移量
-    int block_offset;
-    // AVAES 结构体
+    DECLARE_ALIGNED(8, uint8_t, counter)[AES_BLOCK_SIZE];
+    DECLARE_ALIGNED(8, uint8_t, encrypted_counter)[AES_BLOCK_SIZE];
     AVAES aes;
 } AVAESCTR;
 
@@ -63,8 +59,6 @@ void av_aes_ctr_set_iv(struct AVAESCTR *a, const uint8_t* iv)
     memcpy(a->counter, iv, AES_CTR_IV_SIZE);
     // 其余部分清零
     memset(a->counter + AES_CTR_IV_SIZE, 0, sizeof(a->counter) - AES_CTR_IV_SIZE);
-    // 设置块偏移量为 0
-    a->block_offset = 0;
 }
 
 // 设置完整的初始向量
@@ -72,8 +66,6 @@ void av_aes_ctr_set_full_iv(struct AVAESCTR *a, const uint8_t* iv)
 {
     // 完整复制 IV 到计数器
     memcpy(a->counter, iv, sizeof(a->counter));
-    // 设置块偏移量为 0
-    a->block_offset = 0;
 }
 
 // 获取初始向量
@@ -105,8 +97,6 @@ int av_aes_ctr_init(struct AVAESCTR *a, const uint8_t *key)
 
     // 计数器清零
     memset(a->counter, 0, sizeof(a->counter));
-    // 块偏移量为 0
-    a->block_offset = 0;
 
     // 返回 0 表示成功
     return 0;
@@ -119,20 +109,10 @@ void av_aes_ctr_free(struct AVAESCTR *a)
     av_free(a);
 }
 
-// 以大端字节序方式递增 64 位的计数器
-static void av_aes_ctr_increment_be64(uint8_t* counter)
+static inline void av_aes_ctr_increment_be64(uint8_t* counter)
 {
-    // 定义当前位置指针
-    uint8_t* cur_pos;
-
-    // 从高位到低位递增
-    for (cur_pos = counter + 7; cur_pos >= counter; cur_pos--) {
-        (*cur_pos)++;
-        // 如果当前字节不为 0，停止递增
-        if (*cur_pos != 0) {
-            break;
-        }
-    }
+    uint64_t c = AV_RB64A(counter) + 1;
+    AV_WB64A(counter, c);
 }
 
 // 递增初始向量
@@ -142,44 +122,30 @@ void av_aes_ctr_increment_iv(struct AVAESCTR *a)
     av_aes_ctr_increment_be64(a->counter);
     // 计数器的后半部分清零
     memset(a->counter + AES_CTR_IV_SIZE, 0, sizeof(a->counter) - AES_CTR_IV_SIZE);
-    // 块偏移量为 0
-    a->block_offset = 0;
 }
 
 // 加密或解密数据
 void av_aes_ctr_crypt(struct AVAESCTR *a, uint8_t *dst, const uint8_t *src, int count)
 {
-    // 定义源数据的结束位置
-    const uint8_t* src_end = src + count;
-    // 定义当前处理的结束位置
-    const uint8_t* cur_end_pos;
-    // 加密计数器的位置指针
-    uint8_t* encrypted_counter_pos;
+    while (count >= AES_BLOCK_SIZE) {
+        av_aes_crypt(&a->aes, a->encrypted_counter, a->counter, 1, NULL, 0);
+        av_aes_ctr_increment_be64(a->counter + 8);
+#if HAVE_FAST_64BIT
+        for (int len = 0; len < AES_BLOCK_SIZE; len += 8)
+            AV_WN64(&dst[len], AV_RN64(&src[len]) ^ AV_RN64A(&a->encrypted_counter[len]));
+#else
+        for (int len = 0; len < AES_BLOCK_SIZE; len += 4)
+            AV_WN32(&dst[len], AV_RN32(&src[len]) ^ AV_RN32A(&a->encrypted_counter[len]));
+#endif
+        dst += AES_BLOCK_SIZE;
+        src += AES_BLOCK_SIZE;
+        count -= AES_BLOCK_SIZE;
+    }
 
-    // 当源数据未处理完
-    while (src < src_end) {
-        // 如果块偏移量为 0
-        if (a->block_offset == 0) {
-            // 对计数器进行加密
-            av_aes_crypt(&a->aes, a->encrypted_counter, a->counter, 1, NULL, 0);
-
-            // 递增计数器的高位部分
-            av_aes_ctr_increment_be64(a->counter + 8);
-        }
-
-        // 获取加密计数器的当前位置
-        encrypted_counter_pos = a->encrypted_counter + a->block_offset;
-        // 计算当前处理的结束位置
-        cur_end_pos = src + AES_BLOCK_SIZE - a->block_offset;
-        cur_end_pos = FFMIN(cur_end_pos, src_end);
-
-        // 更新块偏移量
-        a->block_offset += cur_end_pos - src;
-        a->block_offset &= (AES_BLOCK_SIZE - 1);
-
-        // 进行加密操作
-        while (src < cur_end_pos) {
-            *dst++ = *src++ ^ *encrypted_counter_pos++;
-        }
+    if (count > 0) {
+        av_aes_crypt(&a->aes, a->encrypted_counter, a->counter, 1, NULL, 0);
+        av_aes_ctr_increment_be64(a->counter + 8);
+        for (int len = 0; len < count; len++)
+            dst[len] = src[len] ^ a->encrypted_counter[len];
     }
 }

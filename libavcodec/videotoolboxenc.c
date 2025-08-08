@@ -54,6 +54,11 @@ enum { kCVPixelFormatType_420YpCbCr10BiPlanarFullRange = 'xf20' };
 enum { kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange = 'x420' };
 #endif
 
+#if !HAVE_KVTQPMODULATIONLEVEL_DEFAULT
+enum { kVTQPModulationLevel_Default = -1 };
+enum { kVTQPModulationLevel_Disable = 0 };
+#endif
+
 #ifndef TARGET_CPU_ARM64
 #   define TARGET_CPU_ARM64 0
 #endif
@@ -115,12 +120,14 @@ static struct{
 
     CFStringRef kVTProfileLevel_HEVC_Main_AutoLevel;
     CFStringRef kVTProfileLevel_HEVC_Main10_AutoLevel;
+    CFStringRef kVTProfileLevel_HEVC_Main42210_AutoLevel;
 
     CFStringRef kVTCompressionPropertyKey_RealTime;
     CFStringRef kVTCompressionPropertyKey_TargetQualityForAlpha;
     CFStringRef kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality;
     CFStringRef kVTCompressionPropertyKey_ConstantBitRate;
     CFStringRef kVTCompressionPropertyKey_EncoderID;
+    CFStringRef kVTCompressionPropertyKey_SpatialAdaptiveQPLevel;
 
     CFStringRef kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder;
     CFStringRef kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder;
@@ -186,6 +193,7 @@ static void loadVTEncSymbols(void){
 
     GET_SYM(kVTProfileLevel_HEVC_Main_AutoLevel,     "HEVC_Main_AutoLevel");
     GET_SYM(kVTProfileLevel_HEVC_Main10_AutoLevel,   "HEVC_Main10_AutoLevel");
+    GET_SYM(kVTProfileLevel_HEVC_Main42210_AutoLevel,   "HEVC_Main42210_AutoLevel");
 
     GET_SYM(kVTCompressionPropertyKey_RealTime, "RealTime");
     GET_SYM(kVTCompressionPropertyKey_TargetQualityForAlpha,
@@ -208,6 +216,7 @@ static void loadVTEncSymbols(void){
             "ReferenceBufferCount");
     GET_SYM(kVTCompressionPropertyKey_MaxAllowedFrameQP, "MaxAllowedFrameQP");
     GET_SYM(kVTCompressionPropertyKey_MinAllowedFrameQP, "MinAllowedFrameQP");
+    GET_SYM(kVTCompressionPropertyKey_SpatialAdaptiveQPLevel, "SpatialAdaptiveQPLevel");
 }
 
 #define H264_PROFILE_CONSTRAINED_HIGH (AV_PROFILE_H264_HIGH | AV_PROFILE_H264_CONSTRAINED)
@@ -227,9 +236,9 @@ typedef struct ExtraSEI {
 
 typedef struct BufNode {
     CMSampleBufferRef cm_buffer;
-    ExtraSEI *sei;
+    ExtraSEI sei;
+    AVBufferRef *frame_buf;
     struct BufNode* next;
-    int error;
 } BufNode;
 
 typedef struct VTEncContext {
@@ -262,7 +271,7 @@ typedef struct VTEncContext {
     int realtime;
     int frames_before;
     int frames_after;
-    bool constant_bit_rate;
+    int constant_bit_rate;
 
     int allow_sw;
     int require_sw;
@@ -279,7 +288,20 @@ typedef struct VTEncContext {
     int max_slice_bytes;
     int power_efficient;
     int max_ref_frames;
+    int spatialaq;
 } VTEncContext;
+
+static void vtenc_free_buf_node(BufNode *info)
+{
+    if (!info)
+        return;
+
+    av_free(info->sei.data);
+    if (info->cm_buffer)
+        CFRelease(info->cm_buffer);
+    av_buffer_unref(&info->frame_buf);
+    av_free(info);
+}
 
 static int vt_dump_encoder(AVCodecContext *avctx)
 {
@@ -348,8 +370,7 @@ static void set_async_error(VTEncContext *vtctx, int err)
 
     while (info) {
         BufNode *next = info->next;
-        CFRelease(info->cm_buffer);
-        av_free(info);
+        vtenc_free_buf_node(info);
         info = next;
     }
 
@@ -389,7 +410,7 @@ static void vtenc_reset(VTEncContext *vtctx)
     }
 }
 
-static int vtenc_q_pop(VTEncContext *vtctx, bool wait, CMSampleBufferRef *buf, ExtraSEI **sei)
+static int vtenc_q_pop(VTEncContext *vtctx, bool wait, CMSampleBufferRef *buf, ExtraSEI *sei)
 {
     BufNode *info;
 
@@ -427,31 +448,18 @@ static int vtenc_q_pop(VTEncContext *vtctx, bool wait, CMSampleBufferRef *buf, E
     pthread_mutex_unlock(&vtctx->lock);
 
     *buf = info->cm_buffer;
+    info->cm_buffer = NULL;
     if (sei && *buf) {
         *sei = info->sei;
-    } else if (info->sei) {
-        if (info->sei->data) av_free(info->sei->data);
-        av_free(info->sei);
+        info->sei = (ExtraSEI) {0};
     }
-    av_free(info);
-
+    vtenc_free_buf_node(info);
 
     return 0;
 }
 
-static void vtenc_q_push(VTEncContext *vtctx, CMSampleBufferRef buffer, ExtraSEI *sei)
+static void vtenc_q_push(VTEncContext *vtctx, BufNode *info)
 {
-    BufNode *info = av_malloc(sizeof(BufNode));
-    if (!info) {
-        set_async_error(vtctx, AVERROR(ENOMEM));
-        return;
-    }
-
-    CFRetain(buffer);
-    info->cm_buffer = buffer;
-    info->sei = sei;
-    info->next = NULL;
-
     pthread_mutex_lock(&vtctx->lock);
 
     if (!vtctx->q_head) {
@@ -736,13 +744,16 @@ static void vtenc_output_callback(
 {
     AVCodecContext *avctx = ctx;
     VTEncContext   *vtctx = avctx->priv_data;
-    ExtraSEI *sei = sourceFrameCtx;
+    BufNode *info = sourceFrameCtx;
 
+    av_buffer_unref(&info->frame_buf);
     if (vtctx->async_error) {
+        vtenc_free_buf_node(info);
         return;
     }
 
     if (status) {
+        vtenc_free_buf_node(info);
         av_log(avctx, AV_LOG_ERROR, "Error encoding frame: %d\n", (int)status);
         set_async_error(vtctx, AVERROR_EXTERNAL);
         return;
@@ -752,15 +763,19 @@ static void vtenc_output_callback(
         return;
     }
 
+    CFRetain(sample_buffer);
+    info->cm_buffer = sample_buffer;
+
     if (!avctx->extradata && (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER)) {
         int set_status = set_extradata(avctx, sample_buffer);
         if (set_status) {
+            vtenc_free_buf_node(info);
             set_async_error(vtctx, set_status);
             return;
         }
     }
 
-    vtenc_q_push(vtctx, sample_buffer, sei);
+    vtenc_q_push(vtctx, info);
 }
 
 static int get_length_code_size(
@@ -965,6 +980,11 @@ static bool get_vt_hevc_profile_level(AVCodecContext *avctx,
             }
             *profile_level_val =
                 compat_keys.kVTProfileLevel_HEVC_Main10_AutoLevel;
+            break;
+        case AV_PROFILE_HEVC_REXT:
+            // only main42210 is supported, omit depth and chroma subsampling
+            *profile_level_val =
+                compat_keys.kVTProfileLevel_HEVC_Main42210_AutoLevel;
             break;
     }
 
@@ -1199,7 +1219,11 @@ static int vtenc_create_encoder(AVCodecContext   *avctx,
     }
 
 #if defined (MAC_OS_X_VERSION_10_13) && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_13)
-    if (__builtin_available(macOS 10.13, *)) {
+    if (__builtin_available(macOS 10.13, iOS 11.0, *)) {
+        if (vtctx->supported_props) {
+            CFRelease(vtctx->supported_props);
+            vtctx->supported_props = NULL;
+        }
         status = VTCopySupportedPropertyDictionaryForEncoder(avctx->width,
                                                              avctx->height,
                                                              codec_type,
@@ -1318,8 +1342,10 @@ static int vtenc_create_encoder(AVCodecContext   *avctx,
         }
     }
 
-    if (vtctx->codec_id == AV_CODEC_ID_HEVC) {
-        if (avctx->pix_fmt == AV_PIX_FMT_BGRA && vtctx->alpha_quality > 0.0) {
+    if (vtctx->codec_id == AV_CODEC_ID_HEVC && vtctx->alpha_quality > 0.0) {
+        const AVPixFmtDescriptor *descriptor = av_pix_fmt_desc_get(avctx->pix_fmt);
+
+        if (descriptor->flags & AV_PIX_FMT_FLAG_ALPHA) {
             CFNumberRef alpha_quality_num = CFNumberCreate(kCFAllocatorDefault,
                                                            kCFNumberDoubleType,
                                                            &vtctx->alpha_quality);
@@ -1588,6 +1614,13 @@ static int vtenc_create_encoder(AVCodecContext   *avctx,
         if (status != 0) {
             return status;
         }
+    }
+
+    if (vtctx->spatialaq >= 0) {
+        set_encoder_int_property_or_log(avctx,
+                                        compat_keys.kVTCompressionPropertyKey_SpatialAdaptiveQPLevel,
+                                        "spatialaq",
+                                        vtctx->spatialaq ? kVTQPModulationLevel_Default : kVTQPModulationLevel_Disable);
     }
 
     status = VTCompressionSessionPrepareToEncodeFrames(vtctx->session);
@@ -2450,7 +2483,8 @@ static int copy_avframe_to_pixel_buffer(AVCodecContext   *avctx,
 
 static int create_cv_pixel_buffer(AVCodecContext   *avctx,
                                   const AVFrame    *frame,
-                                  CVPixelBufferRef *cv_img)
+                                  CVPixelBufferRef *cv_img,
+                                  BufNode          *node)
 {
     int plane_count;
     int color;
@@ -2469,6 +2503,12 @@ static int create_cv_pixel_buffer(AVCodecContext   *avctx,
         av_assert0(*cv_img);
 
         CFRetain(*cv_img);
+        if (frame->buf[0]) {
+            node->frame_buf = av_buffer_ref(frame->buf[0]);
+            if (!node->frame_buf)
+                return AVERROR(ENOMEM);
+        }
+
         return 0;
     }
 
@@ -2566,33 +2606,29 @@ static int vtenc_send_frame(AVCodecContext *avctx,
                             const AVFrame  *frame)
 {
     CMTime time;
-    CFDictionaryRef frame_dict;
+    CFDictionaryRef frame_dict = NULL;
     CVPixelBufferRef cv_img = NULL;
     AVFrameSideData *side_data = NULL;
-    ExtraSEI *sei = NULL;
-    int status = create_cv_pixel_buffer(avctx, frame, &cv_img);
+    BufNode *node = av_mallocz(sizeof(*node));
+    int status;
 
-    if (status) return status;
+    if (!node)
+        return AVERROR(ENOMEM);
+
+    status = create_cv_pixel_buffer(avctx, frame, &cv_img, node);
+    if (status)
+        goto out;
 
     status = create_encoder_dict_h264(frame, &frame_dict);
-    if (status) {
-        CFRelease(cv_img);
-        return status;
-    }
+    if (status)
+        goto out;
 
 #if CONFIG_ATSC_A53
     side_data = av_frame_get_side_data(frame, AV_FRAME_DATA_A53_CC);
     if (vtctx->a53_cc && side_data && side_data->size) {
-        sei = av_mallocz(sizeof(*sei));
-        if (!sei) {
-            av_log(avctx, AV_LOG_ERROR, "Not enough memory for closed captions, skipping\n");
-        } else {
-            int ret = ff_alloc_a53_sei(frame, 0, &sei->data, &sei->size);
-            if (ret < 0) {
-                av_log(avctx, AV_LOG_ERROR, "Not enough memory for closed captions, skipping\n");
-                av_free(sei);
-                sei = NULL;
-            }
+        status = ff_alloc_a53_sei(frame, 0, &node->sei.data, &node->sei.size);
+        if (status < 0) {
+            goto out;
         }
     }
 #endif
@@ -2604,19 +2640,26 @@ static int vtenc_send_frame(AVCodecContext *avctx,
         time,
         kCMTimeInvalid,
         frame_dict,
-        sei,
+        node,
         NULL
     );
 
-    if (frame_dict) CFRelease(frame_dict);
-    CFRelease(cv_img);
-
     if (status) {
         av_log(avctx, AV_LOG_ERROR, "Error: cannot encode frame: %d\n", status);
-        return AVERROR_EXTERNAL;
+        status = AVERROR_EXTERNAL;
+        // Not necessary, just in case new code put after here
+        goto out;
     }
 
-    return 0;
+out:
+    if (frame_dict)
+        CFRelease(frame_dict);
+    if (cv_img)
+        CFRelease(cv_img);
+    if (status)
+        vtenc_free_buf_node(node);
+
+    return status;
 }
 
 static av_cold int vtenc_frame(
@@ -2629,7 +2672,7 @@ static av_cold int vtenc_frame(
     bool get_frame;
     int status;
     CMSampleBufferRef buf = NULL;
-    ExtraSEI *sei = NULL;
+    ExtraSEI sei = {0};
 
     if (frame) {
         status = vtenc_send_frame(avctx, vtctx, frame);
@@ -2670,11 +2713,8 @@ static av_cold int vtenc_frame(
     if (status) goto end_nopkt;
     if (!buf)   goto end_nopkt;
 
-    status = vtenc_cm_to_avpacket(avctx, buf, pkt, sei);
-    if (sei) {
-        if (sei->data) av_free(sei->data);
-        av_free(sei);
-    }
+    status = vtenc_cm_to_avpacket(avctx, buf, pkt, sei.data ? &sei : NULL);
+    av_free(sei.data);
     CFRelease(buf);
     if (status) goto end_nopkt;
 
@@ -2699,6 +2739,10 @@ static int vtenc_populate_extradata(AVCodecContext   *avctx,
     CVPixelBufferRef pix_buf = NULL;
     CMTime time;
     CMSampleBufferRef buf = NULL;
+    BufNode *node = av_mallocz(sizeof(*node));
+
+    if (!node)
+        return AVERROR(ENOMEM);
 
     status = vtenc_create_encoder(avctx,
                                   codec_type,
@@ -2734,7 +2778,7 @@ static int vtenc_populate_extradata(AVCodecContext   *avctx,
                                              time,
                                              kCMTimeInvalid,
                                              NULL,
-                                             NULL,
+                                             node,
                                              NULL);
 
     if (status) {
@@ -2745,6 +2789,7 @@ static int vtenc_populate_extradata(AVCodecContext   *avctx,
         status = AVERROR_EXTERNAL;
         goto pe_cleanup;
     }
+    node = NULL;
 
     //Populates extradata - output frames are flushed and param sets are available.
     status = VTCompressionSessionCompleteFrames(vtctx->session,
@@ -2767,10 +2812,19 @@ static int vtenc_populate_extradata(AVCodecContext   *avctx,
 
 pe_cleanup:
     CVPixelBufferRelease(pix_buf);
-    vtenc_reset(vtctx);
+
+    if (status) {
+        vtenc_reset(vtctx);
+    } else if (vtctx->session) {
+        CFRelease(vtctx->session);
+        vtctx->session = NULL;
+    }
+
     vtctx->frame_ct_out = 0;
 
     av_assert0(status != 0 || (avctx->extradata && avctx->extradata_size > 0));
+    if (!status)
+        vtenc_free_buf_node(node);
 
     return status;
 }
@@ -2808,7 +2862,9 @@ static const enum AVPixelFormat hevc_pix_fmts[] = {
     AV_PIX_FMT_NV12,
     AV_PIX_FMT_YUV420P,
     AV_PIX_FMT_BGRA,
+    AV_PIX_FMT_AYUV,
     AV_PIX_FMT_P010LE,
+    AV_PIX_FMT_P210,
     AV_PIX_FMT_NONE
 };
 
@@ -2861,6 +2917,8 @@ static const enum AVPixelFormat prores_pix_fmts[] = {
         { .i64 = -1 }, -1, 1, VE }, \
     { "power_efficient", "Set to 1 to enable more power-efficient encoding if supported.", \
         OFFSET(power_efficient), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 1, VE }, \
+    { "spatial_aq", "Set to 1 to enable spatial AQ if supported.", \
+        OFFSET(spatialaq), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 1, VE }, \
     { "max_ref_frames", \
         "Sets the maximum number of reference frames. This only has an effect when the value is less than the maximum allowed by the profile/level.", \
         OFFSET(max_ref_frames), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX, VE },
@@ -2906,6 +2964,13 @@ static const AVOption h264_options[] = {
     { NULL },
 };
 
+static const FFCodecDefault vt_defaults[] = {
+        {"b",    "0"},
+        {"qmin", "-1"},
+        {"qmax", "-1"},
+        {NULL},
+};
+
 static const AVClass h264_videotoolbox_class = {
     .class_name = "h264_videotoolbox",
     .item_name  = av_default_item_name,
@@ -2920,7 +2985,8 @@ const FFCodec ff_h264_videotoolbox_encoder = {
     .p.id             = AV_CODEC_ID_H264,
     .p.capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY,
     .priv_data_size   = sizeof(VTEncContext),
-    .p.pix_fmts       = avc_pix_fmts,
+    CODEC_PIXFMTS_ARRAY(avc_pix_fmts),
+    .defaults         = vt_defaults,
     .init             = vtenc_init,
     FF_CODEC_ENCODE_CB(vtenc_frame),
     .close            = vtenc_close,
@@ -2933,6 +2999,8 @@ static const AVOption hevc_options[] = {
     { "profile", "Profile", OFFSET(profile), AV_OPT_TYPE_INT, { .i64 = AV_PROFILE_UNKNOWN }, AV_PROFILE_UNKNOWN, INT_MAX, VE, .unit = "profile" },
     { "main",     "Main Profile",     0, AV_OPT_TYPE_CONST, { .i64 = AV_PROFILE_HEVC_MAIN    }, INT_MIN, INT_MAX, VE, .unit = "profile" },
     { "main10",   "Main10 Profile",   0, AV_OPT_TYPE_CONST, { .i64 = AV_PROFILE_HEVC_MAIN_10 }, INT_MIN, INT_MAX, VE, .unit = "profile" },
+    { "main42210","Main 4:2:2 10 Profile",0, AV_OPT_TYPE_CONST, { .i64 = AV_PROFILE_HEVC_REXT }, INT_MIN, INT_MAX, VE, .unit = "profile" },
+    { "rext",     "Main 4:2:2 10 Profile",0, AV_OPT_TYPE_CONST, { .i64 = AV_PROFILE_HEVC_REXT }, INT_MIN, INT_MAX, VE, .unit = "profile" },
 
     { "alpha_quality", "Compression quality for the alpha channel", OFFSET(alpha_quality), AV_OPT_TYPE_DOUBLE, { .dbl = 0.0 }, 0.0, 1.0, VE },
 
@@ -2957,7 +3025,9 @@ const FFCodec ff_hevc_videotoolbox_encoder = {
     .p.capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY |
                         AV_CODEC_CAP_HARDWARE,
     .priv_data_size   = sizeof(VTEncContext),
-    .p.pix_fmts       = hevc_pix_fmts,
+    CODEC_PIXFMTS_ARRAY(hevc_pix_fmts),
+    .defaults         = vt_defaults,
+    .color_ranges     = AVCOL_RANGE_MPEG | AVCOL_RANGE_JPEG,
     .init             = vtenc_init,
     FF_CODEC_ENCODE_CB(vtenc_frame),
     .close            = vtenc_close,
@@ -2996,7 +3066,9 @@ const FFCodec ff_prores_videotoolbox_encoder = {
     .p.capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY |
                         AV_CODEC_CAP_HARDWARE,
     .priv_data_size   = sizeof(VTEncContext),
-    .p.pix_fmts       = prores_pix_fmts,
+    CODEC_PIXFMTS_ARRAY(prores_pix_fmts),
+    .defaults         = vt_defaults,
+    .color_ranges     = AVCOL_RANGE_MPEG | AVCOL_RANGE_JPEG,
     .init             = vtenc_init,
     FF_CODEC_ENCODE_CB(vtenc_frame),
     .close            = vtenc_close,

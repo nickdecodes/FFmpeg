@@ -185,9 +185,6 @@ static void set_parser_ctx(AVCodecParserContext *s, AVCodecContext *avctx,
     avctx->color_range =
         sps->vui.vui_full_range_flag ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
 
-    avctx->has_b_frames =
-        sps->sps_dpb_params.dpb_max_num_reorder_pics[sps->sps_max_sublayers_minus1];
-
     if (sps->sps_ptl_dpb_hrd_params_present_flag &&
         sps->sps_timing_hrd_params_present_flag) {
         uint32_t num = sps->sps_general_timing_hrd_parameters.num_units_in_tick;
@@ -303,14 +300,14 @@ static int get_pu_info(PuInfo *info, const CodedBitstreamH266Context *h266,
     }
     info->pps = h266->pps[info->ph->ph_pic_parameter_set_id];
     if (!info->pps) {
-        av_log(logctx, AV_LOG_ERROR, "PPS id %d is not avaliable.\n",
+        av_log(logctx, AV_LOG_ERROR, "PPS id %d is not available.\n",
                info->ph->ph_pic_parameter_set_id);
         ret = AVERROR_INVALIDDATA;
         goto error;
     }
     info->sps = h266->sps[info->pps->pps_seq_parameter_set_id];
     if (!info->sps) {
-        av_log(logctx, AV_LOG_ERROR, "SPS id %d is not avaliable.\n",
+        av_log(logctx, AV_LOG_ERROR, "SPS id %d is not available.\n",
                info->pps->pps_seq_parameter_set_id);
         ret = AVERROR_INVALIDDATA;
         goto error;
@@ -360,7 +357,7 @@ static int parse_nal_units(AVCodecParserContext *s, const uint8_t *buf,
         return 1;
     }
 
-    if ((ret = ff_cbs_read(ctx->cbc, pu, buf, buf_size)) < 0) {
+    if ((ret = ff_cbs_read(ctx->cbc, pu, NULL, buf, buf_size)) < 0) {
         av_log(avctx, AV_LOG_ERROR, "Failed to parse picture unit.\n");
         goto end;
     }

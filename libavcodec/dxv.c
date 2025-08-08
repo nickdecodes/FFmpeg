@@ -240,7 +240,7 @@ static int get_opcodes(GetByteContext *gb, uint32_t *table, uint8_t *dst, int op
 
     size_in_bits = bytestream2_get_le32(gb);
     endoffset = ((size_in_bits + 7) >> 3) - 4;
-    if (endoffset <= 0 || bytestream2_get_bytes_left(gb) < endoffset)
+    if ((int)endoffset <= 0 || bytestream2_get_bytes_left(gb) < endoffset)
         return AVERROR_INVALIDDATA;
 
     offset = endoffset;
@@ -1053,7 +1053,7 @@ static int dxv_decode(AVCodecContext *avctx, AVFrame *frame,
     return avpkt->size;
 }
 
-static int dxv_init(AVCodecContext *avctx)
+static av_cold int dxv_init(AVCodecContext *avctx)
 {
     DXVContext *ctx = avctx->priv_data;
     int ret = av_image_check_size(avctx->width, avctx->height, 0, avctx);
@@ -1073,7 +1073,7 @@ static int dxv_init(AVCodecContext *avctx)
     return 0;
 }
 
-static int dxv_close(AVCodecContext *avctx)
+static av_cold int dxv_close(AVCodecContext *avctx)
 {
     DXVContext *ctx = avctx->priv_data;
 

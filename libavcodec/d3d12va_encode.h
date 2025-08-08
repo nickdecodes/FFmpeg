@@ -40,9 +40,8 @@ extern const AVCodecHWConfigInternal *const ff_d3d12va_encode_hw_configs[];
 #define D3D12VA_VIDEO_ENC_ASYNC_DEPTH 8
 
 typedef struct D3D12VAEncodePicture {
-    FFHWBaseEncodePicture base;
-
     int             header_size;
+    int             aligned_header_size;
 
     AVD3D12VAFrame *input_surface;
     AVD3D12VAFrame *recon_surface;
@@ -302,7 +301,7 @@ typedef struct D3D12VAEncodeType {
     int (*init_sequence_params)(AVCodecContext *avctx);
 
     int (*init_picture_params)(AVCodecContext *avctx,
-                               D3D12VAEncodePicture *pic);
+                               FFHWBaseEncodePicture *base_pic);
 
     void (*free_picture_params)(D3D12VAEncodePicture *pic);
 

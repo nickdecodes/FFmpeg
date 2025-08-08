@@ -36,6 +36,7 @@
 #include <float.h>
 
 #include "libavutil/attributes.h"
+#include "libavutil/attributes_internal.h"
 #include "libavutil/avstring.h"
 #include "libavutil/error.h"
 #include "libavutil/intreadwrite.h"
@@ -1298,9 +1299,13 @@ static int tiff_decode_tag(TiffContext *s, AVFrame *frame)
         s->is_thumbnail = (value != 0);
         break;
     case TIFF_WIDTH:
+        if (value > INT_MAX)
+            return AVERROR_INVALIDDATA;
         s->width = value;
         break;
     case TIFF_HEIGHT:
+        if (value > INT_MAX)
+            return AVERROR_INVALIDDATA;
         s->height = value;
         break;
     case TIFF_BPP:
@@ -1432,12 +1437,18 @@ static int tiff_decode_tag(TiffContext *s, AVFrame *frame)
         s->tile_byte_counts_offset = off;
         break;
     case TIFF_TILE_LENGTH:
+        if (value > INT_MAX)
+            return AVERROR_INVALIDDATA;
         s->tile_length = value;
         break;
     case TIFF_TILE_WIDTH:
+        if (value > INT_MAX)
+            return AVERROR_INVALIDDATA;
         s->tile_width = value;
         break;
     case TIFF_PREDICTOR:
+        if (value > INT_MAX)
+            return AVERROR_INVALIDDATA;
         s->predictor = value;
         break;
     case TIFF_SUB_IFDS:
@@ -1582,12 +1593,18 @@ static int tiff_decode_tag(TiffContext *s, AVFrame *frame)
         }
         break;
     case TIFF_T4OPTIONS:
-        if (s->compr == TIFF_G3)
+        if (s->compr == TIFF_G3) {
+            if (value > INT_MAX)
+                return AVERROR_INVALIDDATA;
             s->fax_opts = value;
+        }
         break;
     case TIFF_T6OPTIONS:
-        if (s->compr == TIFF_G4)
+        if (s->compr == TIFF_G4) {
+            if (value > INT_MAX)
+                return AVERROR_INVALIDDATA;
             s->fax_opts = value;
+        }
         break;
 #define ADD_METADATA(count, name, sep)\
     if ((ret = add_metadata(count, type, name, sep, s, frame)) < 0) {\
@@ -2393,7 +2410,6 @@ again:
 static av_cold int tiff_init(AVCodecContext *avctx)
 {
     TiffContext *s = avctx->priv_data;
-    const AVCodec *codec;
     int ret;
 
     s->width  = 0;
@@ -2413,17 +2429,15 @@ static av_cold int tiff_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
 
     /* Prepare everything needed for JPEG decoding */
-    codec = avcodec_find_decoder(AV_CODEC_ID_MJPEG);
-    if (!codec)
-        return AVERROR_BUG;
-    s->avctx_mjpeg = avcodec_alloc_context3(codec);
+    EXTERN const FFCodec ff_mjpeg_decoder;
+    s->avctx_mjpeg = avcodec_alloc_context3(&ff_mjpeg_decoder.p);
     if (!s->avctx_mjpeg)
         return AVERROR(ENOMEM);
     s->avctx_mjpeg->flags = avctx->flags;
     s->avctx_mjpeg->flags2 = avctx->flags2;
     s->avctx_mjpeg->idct_algo = avctx->idct_algo;
     s->avctx_mjpeg->max_pixels = avctx->max_pixels;
-    ret = avcodec_open2(s->avctx_mjpeg, codec, NULL);
+    ret = avcodec_open2(s->avctx_mjpeg, NULL, NULL);
     if (ret < 0) {
         return ret;
     }

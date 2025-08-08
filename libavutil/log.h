@@ -37,6 +37,7 @@ typedef enum {
     AV_CLASS_CATEGORY_BITSTREAM_FILTER,
     AV_CLASS_CATEGORY_SWSCALER,
     AV_CLASS_CATEGORY_SWRESAMPLER,
+    AV_CLASS_CATEGORY_HWDEVICE,
     AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT = 40,
     AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT,
     AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT,
@@ -45,6 +46,15 @@ typedef enum {
     AV_CLASS_CATEGORY_DEVICE_INPUT,
     AV_CLASS_CATEGORY_NB  ///< not part of ABI/API
 }AVClassCategory;
+
+enum AVClassStateFlags {
+    /**
+     * Object initialization has finished and it is now in the 'runtime' stage.
+     * This affects e.g. what options can be set on the object (only
+     * AV_OPT_FLAG_RUNTIME_PARAM options can be set on initialized objects).
+     */
+    AV_CLASS_STATE_INITIALIZED         = (1 << 0),
+};
 
 #define AV_IS_INPUT_DEVICE(category) \
     (((category) == AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT) || \
@@ -77,7 +87,9 @@ typedef struct AVClass {  // 定义一个名为 AVClass 的结构体，并为其
     const char* (*item_name)(void* ctx);  // 指向一个函数的指针，该函数返回与类相关的上下文实例的名称
 
     /**
-     * a pointer to the first option specified in the class if any or NULL
+     * An array of options for the structure or NULL.
+     * When non-NULL, the array must be terminated by an option with a NULL
+     * name.
      *
      * @see av_set_default_options()
      */
@@ -85,42 +97,49 @@ typedef struct AVClass {  // 定义一个名为 AVClass 的结构体，并为其
 
     /**
      * LIBAVUTIL_VERSION with which this structure was created.
-     * This is used to allow fields to be added without requiring major
-     * version bumps everywhere.
+     * This is used to allow fields to be added to AVClass without requiring
+     * major version bumps everywhere.
      */
     int version;  // 创建此结构时的 LIBAVUTIL_VERSION
 
     /**
-     * Offset in the structure where log_level_offset is stored.
-     * 0 means there is no such variable
+     * Offset in the structure where the log level offset is stored. The log
+     * level offset is an int added to the log level for logging with this
+     * object as the context.
+     *
+     * 0 means there is no such variable.
      */
     int log_level_offset_offset;  // 存储 log_level_offset 的结构偏移量，如果为 0 则表示没有此变量
 
     /**
      * Offset in the structure where a pointer to the parent context for
      * logging is stored. For example a decoder could pass its AVCodecContext
-     * to eval as such a parent context, which an av_log() implementation
+     * to eval as such a parent context, which an ::av_log() implementation
      * could then leverage to display the parent context.
-     * The offset can be NULL.
+     *
+     * When the pointer is NULL, or this offset is zero, the object is assumed
+     * to have no parent.
      */
     int parent_log_context_offset;  // 存储父日志上下文指针的结构偏移量，偏移量可以为 NULL
 
     /**
-     * Category used for visualization (like color)
-     * This is only set if the category is equal for all objects using this class.
-     * available since version (51 << 16 | 56 << 8 | 100)
+     * Category used for visualization (like color).
+     *
+     * Only used when ::get_category() is NULL. Use this field when all
+     * instances of this class have the same category, use ::get_category()
+     * otherwise.
      */
     AVClassCategory category;  // 用于可视化的类别（如颜色）
 
     /**
-     * Callback to return the category.
-     * available since version (51 << 16 | 59 << 8 | 100)
+     * Callback to return the instance category. Use this callback when
+     * different instances of this class may have different categories,
+     * ::category otherwise.
      */
     AVClassCategory (*get_category)(void* ctx);  // 返回类别的回调函数
 
     /**
      * Callback to return the supported/allowed ranges.
-     * available since version (52.12)
      */
     int (*query_ranges)(struct AVOptionRanges **, void *obj, const char *key, int flags);  // 返回支持/允许范围的回调函数
 
@@ -138,12 +157,23 @@ typedef struct AVClass {  // 定义一个名为 AVClass 的结构体，并为其
      * @return AVClass for the next AVOptions-enabled child or NULL if there are
      *         no more such children.
      *
-     * @note The difference between child_next and this is that child_next
-     *       iterates over _already existing_ objects, while child_class_iterate
-     *       iterates over _all possible_ children.
+     * @note The difference between ::child_next() and ::child_class_iterate()
+     *       is that ::child_next() iterates over _actual_ children of an
+     *       _existing_ object instance, while ::child_class_iterate() iterates
+     *       over the classes of all _potential_ children of any possible
+     *       instance of this class.
      */
-    const struct AVClass* (*child_class_iterate)(void **iter);  // 遍历潜在启用 AVOptions 的子对象的 AVClass 的函数指针
-} AVClass;  // 结束结构体的定义
+    const struct AVClass* (*child_class_iterate)(void **iter);
+
+    /**
+     * When non-zero, offset in the object to an unsigned int holding object
+     * state flags, a combination of AVClassStateFlags values. The flags are
+     * updated by the object to signal its state to the generic code.
+     *
+     * Added in version 59.41.100.
+     */
+    int state_flags_offset;
+} AVClass;
 
 /**
  * @addtogroup lavu_log
@@ -246,9 +276,9 @@ void av_log(void *avcl, int level, const char *fmt, ...) av_printf_format(3, 4);
  * @param avcl A pointer to an arbitrary struct of which the first field is a
  *        pointer to an AVClass struct or NULL if general log.
  * @param initial_level importance level of the message expressed using a @ref
- *        lavu_log_constants "Logging Constant" for the first occurance.
+ *        lavu_log_constants "Logging Constant" for the first occurrence.
  * @param subsequent_level importance level of the message expressed using a @ref
- *        lavu_log_constants "Logging Constant" after the first occurance.
+ *        lavu_log_constants "Logging Constant" after the first occurrence.
  * @param fmt The format string (printf-compatible) that specifies how
  *        subsequent arguments are converted to output.
  * @param state a variable to keep trak of if a message has already been printed
@@ -375,6 +405,16 @@ int av_log_format_line2(void *ptr, int level, const char *fmt, va_list vl,
  * [rawvideo @ 0xDEADBEEF] [error] encode did not produce valid pts
  */
 #define AV_LOG_PRINT_LEVEL 2
+
+/**
+ * Include system time in log output.
+ */
+#define AV_LOG_PRINT_TIME 4
+
+/**
+ * Include system date and time in log output.
+ */
+#define AV_LOG_PRINT_DATETIME 8
 
 void av_log_set_flags(int arg);
 int av_log_get_flags(void);

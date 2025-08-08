@@ -107,10 +107,10 @@ static int d3d12va_discard_command_allocator(AVCodecContext *avctx, ID3D12Comman
 }
 
 static int d3d12va_encode_wait(AVCodecContext *avctx,
-                               D3D12VAEncodePicture *pic)
+                               FFHWBaseEncodePicture *base_pic)
 {
-    D3D12VAEncodeContext       *ctx = avctx->priv_data;
-    FFHWBaseEncodePicture *base_pic = &pic->base;
+    D3D12VAEncodeContext *ctx = avctx->priv_data;
+    D3D12VAEncodePicture *pic = base_pic->priv;
     uint64_t completion;
 
     av_assert0(base_pic->encode_issued);
@@ -186,12 +186,12 @@ static int d3d12va_encode_create_metadata_buffers(AVCodecContext *avctx,
 }
 
 static int d3d12va_encode_issue(AVCodecContext *avctx,
-                                const FFHWBaseEncodePicture *base_pic)
+                                FFHWBaseEncodePicture *base_pic)
 {
     FFHWBaseEncodeContext *base_ctx = avctx->priv_data;
     D3D12VAEncodeContext       *ctx = avctx->priv_data;
+    D3D12VAEncodePicture       *pic = base_pic->priv;
     AVD3D12VAFramesContext *frames_hwctx = base_ctx->input_frames->hwctx;
-    D3D12VAEncodePicture *pic = (D3D12VAEncodePicture *)base_pic;
     int err, i, j;
     HRESULT hr;
     char data[MAX_PARAM_BUFFER_SIZE];
@@ -264,12 +264,6 @@ static int d3d12va_encode_issue(AVCodecContext *avctx,
 
     av_log(avctx, AV_LOG_DEBUG, "Input surface is %p.\n", pic->input_surface->texture);
 
-    err = av_hwframe_get_buffer(base_ctx->recon_frames_ref, base_pic->recon_image, 0);
-    if (err < 0) {
-        err = AVERROR(ENOMEM);
-        goto fail;
-    }
-
     pic->recon_surface = (AVD3D12VAFrame *)base_pic->recon_image->data[0];
     av_log(avctx, AV_LOG_DEBUG, "Recon surface is %p.\n",
            pic->recon_surface->texture);
@@ -288,7 +282,7 @@ static int d3d12va_encode_issue(AVCodecContext *avctx,
         goto fail;
 
     if (ctx->codec->init_picture_params) {
-        err = ctx->codec->init_picture_params(avctx, pic);
+        err = ctx->codec->init_picture_params(avctx, base_pic);
         if (err < 0) {
             av_log(avctx, AV_LOG_ERROR, "Failed to initialise picture "
                    "parameters: %d.\n", err);
@@ -305,21 +299,20 @@ static int d3d12va_encode_issue(AVCodecContext *avctx,
                        "header: %d.\n", err);
                 goto fail;
             }
+            pic->header_size = (int)bit_len / 8;
+            pic->aligned_header_size = pic->header_size % ctx->req.CompressedBitstreamBufferAccessAlignment ?
+                                    FFALIGN(pic->header_size, ctx->req.CompressedBitstreamBufferAccessAlignment) :
+                                    pic->header_size;
+
+            hr = ID3D12Resource_Map(pic->output_buffer, 0, NULL, (void **)&ptr);
+            if (FAILED(hr)) {
+                err = AVERROR_UNKNOWN;
+                goto fail;
+            }
+
+            memcpy(ptr, data, pic->aligned_header_size);
+            ID3D12Resource_Unmap(pic->output_buffer, 0, NULL);
         }
-
-        pic->header_size = (int)bit_len / 8;
-        pic->header_size = pic->header_size % ctx->req.CompressedBitstreamBufferAccessAlignment ?
-                           FFALIGN(pic->header_size, ctx->req.CompressedBitstreamBufferAccessAlignment) :
-                           pic->header_size;
-
-        hr = ID3D12Resource_Map(pic->output_buffer, 0, NULL, (void **)&ptr);
-        if (FAILED(hr)) {
-            err = AVERROR_UNKNOWN;
-            goto fail;
-        }
-
-        memcpy(ptr, data, pic->header_size);
-        ID3D12Resource_Unmap(pic->output_buffer, 0, NULL);
     }
 
     d3d12_refs.NumTexture2Ds = base_pic->nb_refs[0] + base_pic->nb_refs[1];
@@ -333,9 +326,9 @@ static int d3d12va_encode_issue(AVCodecContext *avctx,
 
         i = 0;
         for (j = 0; j < base_pic->nb_refs[0]; j++)
-            d3d12_refs.ppTexture2Ds[i++] = ((D3D12VAEncodePicture *)base_pic->refs[0][j])->recon_surface->texture;
+            d3d12_refs.ppTexture2Ds[i++] = ((D3D12VAEncodePicture *)base_pic->refs[0][j]->priv)->recon_surface->texture;
         for (j = 0; j < base_pic->nb_refs[1]; j++)
-            d3d12_refs.ppTexture2Ds[i++] = ((D3D12VAEncodePicture *)base_pic->refs[1][j])->recon_surface->texture;
+            d3d12_refs.ppTexture2Ds[i++] = ((D3D12VAEncodePicture *)base_pic->refs[1][j]->priv)->recon_surface->texture;
     }
 
     input_args.PictureControlDesc.IntraRefreshFrameIndex  = 0;
@@ -344,10 +337,10 @@ static int d3d12va_encode_issue(AVCodecContext *avctx,
 
     input_args.PictureControlDesc.PictureControlCodecData = pic->pic_ctl;
     input_args.PictureControlDesc.ReferenceFrames         = d3d12_refs;
-    input_args.CurrentFrameBitstreamMetadataSize          = pic->header_size;
+    input_args.CurrentFrameBitstreamMetadataSize          = pic->aligned_header_size;
 
     output_args.Bitstream.pBuffer                                    = pic->output_buffer;
-    output_args.Bitstream.FrameStartOffset                           = pic->header_size;
+    output_args.Bitstream.FrameStartOffset                           = pic->aligned_header_size;
     output_args.ReconstructedPicture.pReconstructedPicture           = pic->recon_surface->texture;
     output_args.ReconstructedPicture.ReconstructedPictureSubresource = 0;
     output_args.EncoderOutputMetadata.pBuffer                        = pic->encoded_metadata;
@@ -515,10 +508,11 @@ fail:
 }
 
 static int d3d12va_encode_discard(AVCodecContext *avctx,
-                                  D3D12VAEncodePicture *pic)
+                                  FFHWBaseEncodePicture *base_pic)
 {
-    FFHWBaseEncodePicture *base_pic = &pic->base;
-    d3d12va_encode_wait(avctx, pic);
+    D3D12VAEncodePicture *pic = base_pic->priv;
+
+    d3d12va_encode_wait(avctx, base_pic);
 
     if (pic->output_buffer_ref) {
         av_log(avctx, AV_LOG_DEBUG, "Discard output for pic "
@@ -560,44 +554,33 @@ static int d3d12va_encode_free_rc_params(AVCodecContext *avctx)
     return 0;
 }
 
-static FFHWBaseEncodePicture *d3d12va_encode_alloc(AVCodecContext *avctx,
-                                                   const AVFrame *frame)
+static int d3d12va_encode_init(AVCodecContext *avctx, FFHWBaseEncodePicture *pic)
 {
     D3D12VAEncodeContext *ctx = avctx->priv_data;
-    D3D12VAEncodePicture *pic;
-
-    pic = av_mallocz(sizeof(*pic));
-    if (!pic)
-        return NULL;
+    D3D12VAEncodePicture *priv = pic->priv;
+    AVFrame *frame = pic->input_image;
 
     if (ctx->codec->picture_priv_data_size > 0) {
-        pic->base.priv_data = av_mallocz(ctx->codec->picture_priv_data_size);
-        if (!pic->base.priv_data) {
-            av_freep(&pic);
-            return NULL;
-        }
+        pic->codec_priv = av_mallocz(ctx->codec->picture_priv_data_size);
+        if (!pic->codec_priv)
+            return AVERROR(ENOMEM);
     }
 
-    pic->input_surface = (AVD3D12VAFrame *)frame->data[0];
+    priv->input_surface = (AVD3D12VAFrame *)frame->data[0];
 
-    return &pic->base;
+    return 0;
 }
 
-static int d3d12va_encode_free(AVCodecContext *avctx,
-                               FFHWBaseEncodePicture *base_pic)
+static int d3d12va_encode_free(AVCodecContext *avctx, FFHWBaseEncodePicture *pic)
 {
     D3D12VAEncodeContext *ctx = avctx->priv_data;
-    D3D12VAEncodePicture *pic = (D3D12VAEncodePicture *)base_pic;
+    D3D12VAEncodePicture *priv = pic->priv;
 
-    if (base_pic->encode_issued)
+    if (pic->encode_issued)
         d3d12va_encode_discard(avctx, pic);
 
     if (ctx->codec->free_picture_params)
-        ctx->codec->free_picture_params(pic);
-
-    ff_hw_base_encode_free(base_pic);
-
-    av_free(pic);
+        ctx->codec->free_picture_params(priv);
 
     return 0;
 }
@@ -650,7 +633,7 @@ static int d3d12va_encode_get_coded_data(AVCodecContext *avctx,
         goto end;
 
     total_size += pic->header_size;
-    av_log(avctx, AV_LOG_DEBUG, "Output buffer size %"PRId64"\n", total_size);
+    av_log(avctx, AV_LOG_DEBUG, "Output buffer size %"SIZE_SPECIFIER"\n", total_size);
 
     hr = ID3D12Resource_Map(pic->output_buffer, 0, NULL, (void **)&mapped_data);
     if (FAILED(hr)) {
@@ -663,6 +646,12 @@ static int d3d12va_encode_get_coded_data(AVCodecContext *avctx,
         goto end;
     ptr = pkt->data;
 
+    memcpy(ptr, mapped_data, pic->header_size);
+
+    ptr += pic->header_size;
+    mapped_data += pic->aligned_header_size;
+    total_size -= pic->header_size;
+
     memcpy(ptr, mapped_data, total_size);
 
     ID3D12Resource_Unmap(pic->output_buffer, 0, NULL);
@@ -674,14 +663,14 @@ end:
 }
 
 static int d3d12va_encode_output(AVCodecContext *avctx,
-                                 const FFHWBaseEncodePicture *base_pic, AVPacket *pkt)
+                                 FFHWBaseEncodePicture *base_pic, AVPacket *pkt)
 {
     FFHWBaseEncodeContext *base_ctx = avctx->priv_data;
-    D3D12VAEncodePicture *pic = (D3D12VAEncodePicture *)base_pic;
+    D3D12VAEncodePicture *pic = base_pic->priv;
     AVPacket *pkt_ptr = pkt;
     int err;
 
-    err = d3d12va_encode_wait(avctx, pic);
+    err = d3d12va_encode_wait(avctx, base_pic);
     if (err < 0)
         return err;
 
@@ -1098,13 +1087,15 @@ static int d3d12va_encode_init_gop_structure(AVCodecContext *avctx)
         switch (ctx->codec->d3d12_codec) {
             case D3D12_VIDEO_ENCODER_CODEC_H264:
                 ref_l0 = FFMIN(support.PictureSupport.pH264Support->MaxL0ReferencesForP,
-                               support.PictureSupport.pH264Support->MaxL1ReferencesForB);
+                               support.PictureSupport.pH264Support->MaxL1ReferencesForB ?
+                               support.PictureSupport.pH264Support->MaxL1ReferencesForB : UINT_MAX);
                 ref_l1 = support.PictureSupport.pH264Support->MaxL1ReferencesForB;
                 break;
 
             case D3D12_VIDEO_ENCODER_CODEC_HEVC:
                 ref_l0 = FFMIN(support.PictureSupport.pHEVCSupport->MaxL0ReferencesForP,
-                               support.PictureSupport.pHEVCSupport->MaxL1ReferencesForB);
+                               support.PictureSupport.pHEVCSupport->MaxL1ReferencesForB ?
+                               support.PictureSupport.pHEVCSupport->MaxL1ReferencesForB : UINT_MAX);
                 ref_l1 = support.PictureSupport.pHEVCSupport->MaxL1ReferencesForB;
                 break;
 
@@ -1162,7 +1153,7 @@ static int d3d12va_create_encoder_heap(AVCodecContext *avctx)
 
     D3D12_VIDEO_ENCODER_HEAP_DESC desc = {
         .NodeMask             = 0,
-        .Flags                = D3D12_VIDEO_ENCODER_FLAG_NONE,
+        .Flags                = D3D12_VIDEO_ENCODER_HEAP_FLAG_NONE,
         .EncodeCodec          = ctx->codec->d3d12_codec,
         .EncodeProfile        = ctx->profile->d3d12_profile,
         .EncodeLevel          = ctx->level,
@@ -1274,7 +1265,7 @@ static int d3d12va_encode_create_command_objects(AVCodecContext *avctx)
 {
     D3D12VAEncodeContext *ctx = avctx->priv_data;
     ID3D12CommandAllocator *command_allocator = NULL;
-    int err;
+    int err = AVERROR_UNKNOWN;
     HRESULT hr;
 
     D3D12_COMMAND_QUEUE_DESC queue_desc = {
@@ -1383,7 +1374,9 @@ static int d3d12va_encode_create_recon_frames(AVCodecContext *avctx)
 }
 
 static const FFHWEncodePictureOperation d3d12va_type = {
-    .alloc  = &d3d12va_encode_alloc,
+    .priv_size = sizeof(D3D12VAEncodePicture),
+
+    .init   = &d3d12va_encode_init,
 
     .issue  = &d3d12va_encode_issue,
 

@@ -19,6 +19,7 @@
 #ifndef AVCODEC_HW_BASE_ENCODE_H
 #define AVCODEC_HW_BASE_ENCODE_H
 
+#include "avcodec.h"
 #include "libavutil/hwcontext.h"
 #include "libavutil/fifo.h"
 
@@ -58,6 +59,11 @@ enum {
 };
 
 typedef struct FFHWBaseEncodePicture {
+    // API-specific private data
+    void *priv;
+    // Codec-specific private data
+    void *codec_priv;
+
     struct FFHWBaseEncodePicture *next;
 
     int64_t         display_order;
@@ -76,8 +82,6 @@ typedef struct FFHWBaseEncodePicture {
 
     AVFrame        *input_image;
     AVFrame        *recon_image;
-
-    void           *priv_data;
 
     // Whether this picture is a reference picture.
     int             is_reference;
@@ -103,15 +107,16 @@ typedef struct FFHWBaseEncodePicture {
 } FFHWBaseEncodePicture;
 
 typedef struct FFHWEncodePictureOperation {
-    // Alloc memory for the picture structure and initialize the API-specific internals
-    // based of the given frame.
-    FFHWBaseEncodePicture * (*alloc)(AVCodecContext *avctx, const AVFrame *frame);
+    // Size of API-specific internal picture data
+    size_t priv_size;
+    // Initialize API-specific internals
+    int (*init)(AVCodecContext *avctx, FFHWBaseEncodePicture *pic);
     // Issue the picture structure, which will send the frame surface to HW Encode API.
-    int (*issue)(AVCodecContext *avctx, const FFHWBaseEncodePicture *base_pic);
+    int (*issue)(AVCodecContext *avctx, FFHWBaseEncodePicture *pic);
     // Get the output AVPacket.
-    int (*output)(AVCodecContext *avctx, const FFHWBaseEncodePicture *base_pic, AVPacket *pkt);
+    int (*output)(AVCodecContext *avctx, FFHWBaseEncodePicture *pic, AVPacket *pkt);
     // Free the picture structure.
-    int (*free)(AVCodecContext *avctx, FFHWBaseEncodePicture *base_pic);
+    int (*free)(AVCodecContext *avctx, FFHWBaseEncodePicture *pic);
 }  FFHWEncodePictureOperation;
 
 typedef struct FFHWBaseEncodeContext {
@@ -188,6 +193,10 @@ typedef struct FFHWBaseEncodeContext {
     int end_of_stream;
     int p_to_gpb;
 
+    // The number of L0/L1 references supported by the driver.
+    int             ref_l0;
+    int             ref_l1;
+
     // Whether the driver supports ROI at all.
     int             roi_allowed;
 
@@ -226,8 +235,6 @@ int ff_hw_base_init_gop_structure(FFHWBaseEncodeContext *ctx, AVCodecContext *av
 
 int ff_hw_base_get_recon_format(FFHWBaseEncodeContext *ctx, const void *hwconfig,
                                 enum AVPixelFormat *fmt);
-
-int ff_hw_base_encode_free(FFHWBaseEncodePicture *pic);
 
 int ff_hw_base_encode_init(AVCodecContext *avctx, FFHWBaseEncodeContext *ctx);
 
